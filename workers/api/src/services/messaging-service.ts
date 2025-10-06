@@ -1,15 +1,27 @@
 import { createTwilioClient } from '../integrations/twilio';
 import { callOpenAI } from '../integrations/openai';
 
-export async function sendOutboundMessage(env: Env, tenantId: string, payload: any) {
-  const client = createTwilioClient(env);
-  console.log('Queue outbound message', { tenantId, payload });
-  if (payload.channel === 'whatsapp') {
-    // TODO: Send via WhatsApp messaging service
-  } else {
-    // TODO: Send via SMS
+type OutboundPayload = {
+  to: string;
+  body: string;
+  channel?: 'sms' | 'whatsapp';
+};
+
+export async function sendOutboundMessage(env: Env, tenantId: string, payload: OutboundPayload) {
+  if (!payload?.to || !payload?.body) {
+    throw new Error('Missing recipient or message body');
   }
-  return { status: 'queued' };
+
+  const client = createTwilioClient(env);
+  console.log('Queue outbound message', { tenantId, to: payload.to, channel: payload.channel ?? 'sms' });
+
+  const channel = payload.channel ?? 'sms';
+  const result =
+    channel === 'whatsapp'
+      ? await client.sendWhatsapp(payload.to, payload.body)
+      : await client.sendSms(payload.to, payload.body);
+
+  return { status: 'queued', sid: result.sid, channel };
 }
 
 export async function handleInboundMessage(env: Env, payload: any) {
