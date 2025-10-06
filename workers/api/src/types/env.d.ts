@@ -8,6 +8,9 @@ interface Env {
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
   OPENAI_API_KEY: string;
+  BOOKING_DEPOSIT_SUCCESS_URL?: string;
+  BOOKING_DEPOSIT_CANCEL_URL?: string;
+  DEFAULT_CURRENCY?: string;
   SUPABASE_DB_HOST?: string;
   SUPABASE_DB_NAME?: string;
   SUPABASE_DB_USER?: string;

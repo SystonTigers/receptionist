@@ -71,6 +71,7 @@ create table if not exists services (
   name text not null,
   duration_minutes integer not null,
   price numeric(10,2) not null,
+  requires_deposit boolean default false,
   deposit_type text check (deposit_type in ('fixed','percentage')),
   deposit_value numeric(10,2),
   created_at timestamp with time zone default timezone('utc', now()),
@@ -102,6 +103,7 @@ create table if not exists bookings (
   start_time timestamp with time zone not null,
   end_time timestamp with time zone not null,
   status text not null check (status in ('pending','confirmed','cancelled','no_show','completed')) default 'pending',
+  metadata jsonb default '{}'::jsonb,
   created_at timestamp with time zone default timezone('utc', now()),
   updated_at timestamp with time zone default timezone('utc', now())
 );
