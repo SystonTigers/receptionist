@@ -285,6 +285,7 @@ export default function BookingDashboard({
           <nav>
             <Link href="/dashboard">Overview</Link>
             <Link href="/dashboard/bookings">Bookings calendar</Link>
+            <Link href="/dashboard/inbox">Inbox</Link>
             <Link href="/appointments">Appointments</Link>
             <Link href="/clients">Clients</Link>
             <Link href="/stylists">Stylists</Link>

@@ -13,6 +13,7 @@ import { withErrorHandling } from './middleware/error-handler';
 import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
 import { bookingRouter } from './routes/bookings';
+import { assistRouter } from './routes/assist';
 
 const router = Router();
 
@@ -30,6 +31,8 @@ router.all('/stylists', stylistRouter.handle);
 router.all('/stylists/*', stylistRouter.handle);
 router.all('/messaging', messagingRouter.handle);
 router.all('/messaging/*', messagingRouter.handle);
+router.all('/assist', assistRouter.handle);
+router.all('/assist/*', assistRouter.handle);
 router.all('/payments', paymentRouter.handle);
 router.all('/payments/*', paymentRouter.handle);
 router.all('/dashboard', dashboardRouter.handle);

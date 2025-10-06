@@ -5,9 +5,18 @@ import { sendOutboundMessage, handleInboundMessage } from '../services/messaging
 const router = Router({ base: '/messaging' });
 
 router.post('/outbound', async (request: TenantScopedRequest, env: Env) => {
-  const payload = await request.json();
-  const result = await sendOutboundMessage(env, request.tenantId!, payload);
-  return JsonResponse.ok(result, { status: 202 });
+  const payload = await request.json().catch(() => null);
+  if (!payload) {
+    return JsonResponse.error('Invalid JSON body', 400);
+  }
+
+  try {
+    const result = await sendOutboundMessage(env, request.tenantId!, payload);
+    return JsonResponse.ok(result, { status: 202 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to send message';
+    return JsonResponse.error(message, 400);
+  }
 });
 
 router.post('/inbound', async (request: Request, env: Env) => {
