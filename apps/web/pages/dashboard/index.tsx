@@ -8,6 +8,8 @@ type DashboardSummary = {
   pendingConfirmations: number;
   pendingMessages: number;
   revenueLast30d: number;
+  pendingDeposits: number;
+  collectedDeposits: number;
 };
 
 const fetcher = (path: string) => apiFetch<DashboardSummary>(path);
@@ -53,6 +55,14 @@ export default function DashboardPage() {
               <article>
                 <h2>Revenue (30d)</h2>
                 <p>£{data.revenueLast30d?.toFixed(2)}</p>
+              </article>
+              <article>
+                <h2>Deposits pending</h2>
+                <p>{data.pendingDeposits}</p>
+              </article>
+              <article>
+                <h2>Deposits collected</h2>
+                <p>{data.collectedDeposits}</p>
               </article>
             </div>
           )}

@@ -9,6 +9,7 @@ export const tenantSchema = z.object({
   settings: z.object({
     defaultDepositType: z.enum(['fixed', 'percentage']).default('percentage'),
     defaultDepositValue: z.number().nonnegative().default(20),
+    depositsEnabled: z.boolean().default(false),
     timezone: z.string(),
     locale: z.string(),
     cancellationPolicy: z.string()

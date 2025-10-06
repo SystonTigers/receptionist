@@ -17,6 +17,7 @@ export interface Tenant {
 export interface TenantSettings {
   defaultDepositType: 'fixed' | 'percentage';
   defaultDepositValue: number;
+  depositsEnabled: boolean;
   timezone: string;
   locale: string;
   cancellationPolicy: string;
@@ -72,10 +73,25 @@ export interface Service {
   name: string;
   durationMinutes: number;
   price: number;
+  requiresDeposit: boolean;
   depositType?: 'fixed' | 'percentage';
   depositValue?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export type BookingDepositStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
+
+export interface BookingDeposit {
+  required: boolean;
+  status: BookingDepositStatus;
+  amount?: number;
+  currency?: string;
+  checkoutSessionId?: string;
+  checkoutUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  paidAt?: string;
 }
 
 export interface Appointment {
@@ -116,6 +132,7 @@ export interface Booking {
   createdAt: string;
   updatedAt: string;
   cancelledAt?: string;
+  deposit?: BookingDeposit;
 }
 
 export interface MessageLog {

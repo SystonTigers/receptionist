@@ -46,8 +46,8 @@ router.post('/', async (request: TenantScopedRequest, env: Env) => {
     return JsonResponse.error('Missing user context', 401);
   }
 
-  const booking = await createBooking(env, request.tenantId!, request.userId, parsed.data);
-  return JsonResponse.ok({ booking }, { status: 201 });
+  const { booking, checkoutUrl } = await createBooking(env, request.tenantId!, request.userId, parsed.data);
+  return JsonResponse.ok({ booking, checkoutUrl }, { status: 201 });
 });
 
 router.patch('/:id', async (request: RequestWithParams, env: Env) => {
