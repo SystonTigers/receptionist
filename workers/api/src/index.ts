@@ -12,6 +12,7 @@ import { marketingRouter } from './routes/marketing';
 import { withErrorHandling } from './middleware/error-handler';
 import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
+import { bookingRouter } from './routes/bookings';
 
 const router = Router();
 
@@ -21,6 +22,8 @@ router.all('/tenants', tenantRouter.handle);
 router.all('/tenants/*', tenantRouter.handle);
 router.all('/appointments', appointmentRouter.handle);
 router.all('/appointments/*', appointmentRouter.handle);
+router.all('/bookings', bookingRouter.handle);
+router.all('/bookings/*', bookingRouter.handle);
 router.all('/clients', clientRouter.handle);
 router.all('/clients/*', clientRouter.handle);
 router.all('/stylists', stylistRouter.handle);
