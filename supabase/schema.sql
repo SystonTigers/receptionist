@@ -93,6 +93,21 @@ create table if not exists appointments (
   updated_at timestamp with time zone default timezone('utc', now())
 );
 
+-- Multi-tenant bookings table used for external integrations/aggregations
+create table if not exists bookings (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  client_name text not null,
+  service text not null,
+  start_time timestamp with time zone not null,
+  end_time timestamp with time zone not null,
+  status text not null check (status in ('pending','confirmed','cancelled','no_show','completed')) default 'pending',
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+create index if not exists bookings_tenant_start_idx on bookings (tenant_id, start_time);
+
 create table if not exists messages (
   id uuid primary key,
   tenant_id uuid references tenants(id) on delete cascade,
@@ -156,6 +171,7 @@ alter table stylists enable row level security;
 alter table stylist_rotas enable row level security;
 alter table services enable row level security;
 alter table appointments enable row level security;
+alter table bookings enable row level security;
 alter table messages enable row level security;
 alter table payment_transactions enable row level security;
 alter table audit_logs enable row level security;
@@ -183,6 +199,32 @@ create policy if not exists "appointments_isolation" on appointments
 
 create policy if not exists "appointments_mutation" on appointments
   for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
+
+-- Allow tenants to access only their own booking rows
+create policy if not exists "bookings_isolation" on bookings
+  for select using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+    )
+  );
+
+-- Limit mutations (insert/update/delete) to the request tenant context
+create policy if not exists "bookings_mutation" on bookings
+  for all using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+    )
+  ) with check (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+    )
+  );
 
 create policy if not exists "messages_isolation" on messages
   for select using (tenant_id = get_auth_tenant_id());
