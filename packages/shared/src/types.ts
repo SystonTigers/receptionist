@@ -1,6 +1,7 @@
 export type TenantId = string;
 export type UserId = string;
 export type AppointmentId = string;
+export type BookingId = string;
 
 export interface Tenant {
   id: TenantId;
@@ -91,6 +92,30 @@ export interface Appointment {
   createdBy: UserId;
   createdAt: string;
   updatedAt: string;
+}
+
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'checked_in'
+  | 'completed'
+  | 'cancelled';
+
+export interface Booking {
+  id: BookingId;
+  tenantId: TenantId;
+  clientId: string;
+  serviceId: string;
+  stylistId?: string;
+  startTime: string;
+  endTime?: string;
+  status: BookingStatus;
+  notes?: string;
+  metadata?: Record<string, unknown>;
+  createdBy: UserId;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt?: string;
 }
 
 export interface MessageLog {
