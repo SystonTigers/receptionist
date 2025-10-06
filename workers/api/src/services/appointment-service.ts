@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
 
+import { sendBookingNotification } from '../integrations/twilio';
+
 function getClient(env: Env) {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -28,6 +30,29 @@ export async function createAppointment(env: Env, tenantId: string, userId: stri
   const { data, error } = await client.from('appointments').insert(body).select().single();
   if (error) {
     throw new Error(`Failed to create appointment: ${error.message}`);
+  }
+  if (data) {
+    const notificationTo = payload?.notification?.to ?? payload?.client?.phone ?? payload?.clientPhone ?? payload?.phone;
+    if (notificationTo) {
+      const scheduledFor = data.start_time ? dayjs(data.start_time).format('MMM D, YYYY h:mm A') : 'the scheduled time';
+      const message = `Your booking has been scheduled for ${scheduledFor}. Reply STOP to unsubscribe.`;
+      try {
+        const result = await sendBookingNotification(env, notificationTo, message);
+        if (!result.success) {
+          console.error('Booking notification ultimately failed', {
+            appointmentId: data.id,
+            to: notificationTo ? `***${String(notificationTo).slice(-4)}` : 'unknown'
+          });
+        }
+      } catch (notificationError) {
+        console.error('Unexpected error while sending booking notification', {
+          appointmentId: data.id,
+          error: notificationError instanceof Error ? notificationError.message : String(notificationError)
+        });
+      }
+    } else {
+      console.log('No notification recipient provided for booking', { appointmentId: data.id });
+    }
   }
   return data;
 }
