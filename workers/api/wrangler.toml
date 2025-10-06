@@ -1,0 +1,21 @@
+name = "ai-hairdresser-receptionist"
+main = "src/index.ts"
+compatibility_date = "2024-02-01"
+workers_dev = true
+
+[vars]
+SUPABASE_URL = "${NEXT_PUBLIC_SUPABASE_URL}"
+SUPABASE_SERVICE_ROLE_KEY = "${SUPABASE_SERVICE_ROLE_KEY}"
+JWT_SECRET = "${JWT_SECRET}"
+MULTITENANT_SIGNING_KEY = "${MULTITENANT_SIGNING_KEY}"
+STRIPE_SECRET_KEY = "${STRIPE_SECRET_KEY}"
+STRIPE_WEBHOOK_SECRET = "${STRIPE_WEBHOOK_SECRET}"
+TWILIO_ACCOUNT_SID = "${TWILIO_ACCOUNT_SID}"
+TWILIO_AUTH_TOKEN = "${TWILIO_AUTH_TOKEN}"
+OPENAI_API_KEY = "${OPENAI_API_KEY}"
+
+[env.production]
+route = "api.yourdomain.com/*"
+account_id = "${CLOUDFLARE_ACCOUNT_ID}"
+token = "${CLOUDFLARE_API_TOKEN}"
+workers_dev = false

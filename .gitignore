@@ -1,0 +1,9 @@
+node_modules
+.next
+.DS_Store
+.env
+.env.local
+wrangler.toml.local
+supabase/.temp
+.svelte-kit
+package-lock.json
