@@ -11,8 +11,11 @@ import {
 } from '../lib/supabase-admin';
 import { hashPassword, verifyPassword } from '../lib/passwords';
 import { buildTenantToken } from '../lib/tenant-token';
+
+import { initializeTenantOnboarding } from './onboarding-service';
+
 import { recordAuditLog } from './audit-log-service';
-import { createTenantSubscription } from './subscription-service';
+import { createTenantSubscription } from './subscription-service'
 
 const signupInput = z.object({
   tenantName: z.string(),
@@ -45,6 +48,10 @@ export async function createTenantWithAdmin(input: unknown, env: Env) {
     password_hash: passwordHash
   });
 
+  await initializeTenantOnboarding(env, {
+    id: tenantId,
+    name: tenant.name,
+    contactEmail: tenant.contact_email
   await createTenantSubscription(env, {
     tenantId,
     tenantName: payload.tenantName,
