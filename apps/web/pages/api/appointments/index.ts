@@ -4,12 +4,17 @@ import { withTenantContext } from '@/lib/with-tenant-context';
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
   if (req.method === 'GET') {
     try {
       const response = await fetch(`${baseUrl}/appointments`, {
         headers: {
           Authorization: req.headers.authorization ?? '',
           'x-tenant-id': req.headers['x-tenant-id'] as string,
+          'x-user-role': req.headers['x-user-role'] as string,
           'x-platform-origin': 'next-web'
         }
       });
@@ -32,6 +37,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           'Content-Type': 'application/json',
           Authorization: req.headers.authorization ?? '',
           'x-tenant-id': req.headers['x-tenant-id'] as string,
+          'x-user-role': req.headers['x-user-role'] as string,
           'x-platform-origin': 'next-web'
         },
         body: JSON.stringify(req.body ?? {})

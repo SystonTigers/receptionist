@@ -13,9 +13,15 @@ export function withTenantContext(handler: NextApiHandler): NextApiHandler {
       return res.status(400).json({ error: 'Missing tenant context' });
     }
 
+    const role = (req.headers['x-user-role'] as string) ?? (req.query.userRole as string);
+    if (!role) {
+      return res.status(400).json({ error: 'Missing user role' });
+    }
+
     // TODO: Validate JWT / session and ensure tenantId matches token claims
     req.headers['x-tenant-id'] = tenantId;
     req.tenantId = tenantId;
+    req.headers['x-user-role'] = role;
     return handler(req, res);
   });
 }

@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
 import { normalizeError, RequestLogger } from '@ai-hairdresser/shared';
-
 import { sendBookingNotification } from '../integrations/twilio';
 import { createSystemLogger } from '../lib/observability';
+
+import { sendNotification, type NotificationPayload, type NotificationChannel } from './notification-service';
 
 function getClient(env: Env) {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -44,16 +45,48 @@ export async function createAppointment(
     throw new Error(`Failed to create appointment: ${error.message}`);
   }
   if (data) {
-    const notificationTo = payload?.notification?.to ?? payload?.client?.phone ?? payload?.clientPhone ?? payload?.phone;
-    if (notificationTo) {
-      const scheduledFor = data.start_time ? dayjs(data.start_time).format('MMM D, YYYY h:mm A') : 'the scheduled time';
-      const message = `Your booking has been scheduled for ${scheduledFor}. Reply STOP to unsubscribe.`;
+    const emailTo = payload?.notification?.email ?? payload?.client?.email ?? payload?.clientEmail ?? payload?.email;
+    const smsTo = payload?.notification?.phone ?? payload?.client?.phone ?? payload?.clientPhone ?? payload?.phone;
+    if (emailTo || smsTo) {
+      const channels: NotificationChannel[] = [];
+      if (emailTo) channels.push('email');
+      if (smsTo) channels.push('sms');
+
+      const clientFirstName =
+        payload?.client?.firstName ?? payload?.client?.first_name ?? payload?.clientFirstName ?? undefined;
+      const clientLastName =
+        payload?.client?.lastName ?? payload?.client?.last_name ?? payload?.clientLastName ?? undefined;
+
+      const notificationPayload: NotificationPayload = {
+        channels,
+        to: {
+          email: emailTo ?? undefined,
+          phone: smsTo ?? undefined,
+          name: [clientFirstName, clientLastName]
+            .filter((value) => Boolean(value && String(value).trim()))
+            .join(' ')
+            .trim() || undefined
+        },
+        data: {
+          appointmentId: data.id,
+          scheduledTime: data.start_time,
+          clientFirstName: clientFirstName ?? undefined,
+          clientLastName: clientLastName ?? undefined
+        }
+      };
+
       try {
         const result = await sendBookingNotification(env, notificationTo, message, logger);
         if (!result.success) {
           logger.warn('Booking notification ultimately failed', {
             appointmentId: data.id,
             recipient: notificationTo ? `***${String(notificationTo).slice(-4)}` : 'unknown'
+        const results = await sendNotification(env, tenantId, 'booking_confirmation', notificationPayload);
+        const success = results.some((result) => result.success);
+        if (!success) {
+          console.error('Booking confirmation notification failed for all channels', {
+            appointmentId: data.id,
+            channels
           });
           logger.metric('messaging.outbound.failure', 1, { dimension: 'sms' });
         }

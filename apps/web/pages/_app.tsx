@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { SupabaseProvider } from '@/lib/supabase-provider';
 import { initBrowserObservability, setBrowserUserContext } from '@/lib/observability.client';
+import { FeatureFlagProvider } from '@/lib/feature-flags';
 import '@/styles/globals.css';
 
 function ObservabilityInitializer() {
@@ -24,6 +25,9 @@ export default function App({ Component, pageProps }: AppProps) {
     <SupabaseProvider>
       <ObservabilityInitializer />
       <Component {...pageProps} />
+      <FeatureFlagProvider>
+        <Component {...pageProps} />
+      </FeatureFlagProvider>
     </SupabaseProvider>
   );
 }

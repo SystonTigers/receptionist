@@ -1,7 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
+
 import { normalizeError, RequestLogger } from '@ai-hairdresser/shared';
 import { createSystemLogger } from '../lib/observability';
+
+import { detectSuspiciousPatterns, listAuditLogsSince } from './audit-log-service';
+import { recordUsageEvent } from './usage-service';
+
+import { sendNotification, type NotificationPayload } from './notification-service';
 
 type TenantRecord = {
   id: string;
@@ -66,12 +72,51 @@ async function listUpcomingBookings(
   return (data ?? []) as BookingRecord[];
 }
 
+
 async function sendBookingNotification(env: Env, notification: BookingNotification, logger: RequestLogger) {
   logger.info('Queue booking reminder', {
+
+async function sendBookingNotification(env: Env, notification: BookingNotification) {
+  const payload: NotificationPayload = {
+    channels: notification.channels,
+    to: {
+      email: notification.client?.email ?? undefined,
+      phone: notification.client?.phone ?? undefined,
+      name: [notification.client?.first_name, notification.client?.last_name]
+        .filter((value) => Boolean(value && value.trim()))
+        .join(' ')
+        .trim() || undefined
+    },
+    data: {
+      bookingId: notification.bookingId,
+      scheduledTime: notification.scheduledTime,
+      clientFirstName: notification.client?.first_name ?? undefined,
+      clientLastName: notification.client?.last_name ?? undefined
+    }
+  };
+
+  const results = await sendNotification(env, notification.tenantId, 'booking_reminder', payload);
+  const successful = results.filter((result) => result.success);
+
+  console.log('Reminder notification dispatch results', 
     tenantId: notification.tenantId,
     bookingId: notification.bookingId,
-    startTime: notification.scheduledTime,
-    channels: notification.channels
+    channels: notification.channels,
+    dispatched: successful.map((result) => result.channel),
+    failed: results.filter((result) => !result.success).map((result) => result.channel)
+  });
+
+  if (successful.length === 0) {
+    const errors = results.map((result) => result.error).filter(Boolean);
+    throw new Error(errors.join('; ') || 'All notification channels failed');
+  }
+
+  return results;
+  await recordUsageEvent(env, notification.tenantId, 'reminder.queued', {
+    metadata: {
+      bookingId: notification.bookingId,
+      channels: notification.channels
+    }
   });
   logger.metric('jobs.reminder.notification', 1, { dimension: notification.tenantId });
 }
@@ -160,4 +205,30 @@ export async function purgeExpiredData(env: Env, parentLogger?: RequestLogger) {
   logger.warn('TODO: purge expired data per GDPR requirements', {
     environment: env.WORKER_ENVIRONMENT ?? 'unknown'
   });
+export async function monitorSecurityEvents(env: Env) {
+  const windowEnd = new Date().toISOString();
+  const windowStart = dayjs(windowEnd).subtract(1, 'hour').toISOString();
+
+  try {
+    const logs = await listAuditLogsSince(env, windowStart);
+    const alerts = detectSuspiciousPatterns(logs, windowStart, windowEnd);
+
+    for (const alert of alerts) {
+      console.warn('Security alert detected', alert);
+    }
+
+    console.log('Security monitoring summary', {
+      windowStart,
+      windowEnd,
+      logsReviewed: logs.length,
+      alertsGenerated: alerts.length
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Security monitoring failed', { windowStart, windowEnd, message });
+  }
+}
+
+export async function purgeExpiredData(env: Env) {
+  console.log('TODO: purge expired data per GDPR requirements');
 }

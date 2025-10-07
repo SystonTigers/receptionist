@@ -1,5 +1,6 @@
 import { normalizeError } from '@ai-hairdresser/shared';
 import { decodeJwt } from 'jose';
+import type { Role } from '@ai-hairdresser/shared';
 import { JsonResponse } from '../lib/response';
 
 const PUBLIC_PATHS = [/^\/healthz$/, /^\/auth\/signup$/, /^\/auth\/login$/, /^\/webhooks\//];
@@ -19,7 +20,8 @@ export async function withAuth(request: TenantScopedRequest, _env: Env, _ctx: Ex
     const token = authorization.replace('Bearer ', '');
     const claims = decodeJwt(token);
     request.userId = claims.sub;
-    request.role = (claims.role as string) ?? 'staff';
+    const claimRole = (claims.role as string | undefined) ?? undefined;
+    request.role = (claimRole as Role | undefined) ?? 'viewer';
     request.tenantId = (claims['tenantId'] as string) ?? request.tenantId;
     return request;
   } catch (error) {

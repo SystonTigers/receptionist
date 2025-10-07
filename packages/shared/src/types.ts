@@ -3,12 +3,19 @@ export type UserId = string;
 export type AppointmentId = string;
 export type BookingId = string;
 
+export type TenantTier = 'starter' | 'growth' | 'scale';
+export type FeatureCode = 'deposits_enabled' | 'ai_assistant_enabled' | 'team_accounts';
+export type PlanCode = 'free' | 'basic' | 'pro';
+export type TenantPlanStatus = 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired';
+
+
 export interface Tenant {
   id: TenantId;
   name: string;
   slug: string;
   contactEmail: string;
   contactPhone?: string;
+  tier: TenantTier;
   createdAt: string;
   updatedAt: string;
   settings: TenantSettings;
@@ -23,7 +30,7 @@ export interface TenantSettings {
   cancellationPolicy: string;
 }
 
-export type Role = 'admin' | 'staff' | 'stylist';
+export type Role = 'owner' | 'admin' | 'staff' | 'viewer';
 
 export interface User {
   id: UserId;
@@ -33,6 +40,21 @@ export interface User {
   lastName: string;
   role: Role;
   passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantUserInvitation {
+  id: string;
+  tenantId: TenantId;
+  email: string;
+  role: Role;
+  status: 'pending' | 'accepted' | 'expired';
+  token: string;
+  invitedBy?: UserId;
+  acceptedBy?: UserId;
+  expiresAt?: string;
+  acceptedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -164,13 +186,16 @@ export interface PaymentTransaction {
 
 export interface AuditLog {
   id: string;
-  tenantId: TenantId;
-  actorId?: UserId;
+  tenantId: TenantId | null;
+  userId?: UserId | null;
   action: string;
   resource: string;
-  resourceId?: string;
-  changes?: Record<string, unknown>;
+  resourceId?: string | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
   createdAt: string;
+  userEmail?: string | null;
+  userName?: string | null;
 }
 
 export interface UsageMetric {
@@ -178,7 +203,42 @@ export interface UsageMetric {
   tenantId: TenantId;
   metric: string;
   value: number;
+  metadata?: Record<string, unknown>;
   occurredAt: string;
+}
+
+export interface UsageEvent {
+  id: string;
+  tenantId: TenantId;
+  eventType: string;
+  quantity: number;
+  metadata?: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export type UsageMeasurement = 'events' | 'tokens';
+
+export interface UsageLimitDefinition {
+  label: string;
+  period: 'day' | 'month';
+  limit: number | null;
+  measurement: UsageMeasurement;
+}
+
+export interface UsageQuotaState {
+  eventType: string;
+  label: string;
+  period: 'day' | 'month';
+  measurement: UsageMeasurement;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+}
+
+export interface UsageOverview {
+  tier: TenantTier;
+  quotas: UsageQuotaState[];
+  metrics: UsageMetric[];
 }
 
 export interface AvailabilityRequest {
@@ -203,4 +263,31 @@ export interface CalendarSyncToken {
   googleCalendarId: string;
   syncToken: string;
   updatedAt: string;
+}
+
+export interface PlanSummary {
+  code: PlanCode;
+  name: string;
+  description?: string | null;
+  monthlyPrice?: number | null;
+  currency?: string | null;
+  gracePeriodDays: number;
+  features: FeatureCode[];
+}
+
+export interface TenantPlanAccess {
+  plan: PlanSummary;
+  effectivePlan: PlanSummary;
+  status: TenantPlanStatus;
+  billingStatus?: string | null;
+  features: FeatureCode[];
+  isInGracePeriod: boolean;
+  currentPeriodEnd?: string | null;
+  gracePeriodEndsAt?: string | null;
+  downgradedTo?: PlanSummary | null;
+}
+
+export interface TenantPlanResponse {
+  tenantPlan: TenantPlanAccess;
+  availablePlans: PlanSummary[];
 }

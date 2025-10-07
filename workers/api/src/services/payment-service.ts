@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { createStripeClient } from '../integrations/stripe';
+import {
+  markInvoiceFailed,
+  markInvoiceSucceeded,
+  markSubscriptionDeleted
+} from './subscription-service';
 
 function getClient(env: Env) {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -133,6 +138,24 @@ export async function handleStripeEvent(env: Env, event: Record<string, unknown>
   }
 
   const session = (event.data as { object?: Record<string, unknown> } | undefined)?.object;
+
+  if (eventType === 'invoice.payment_succeeded') {
+    if (!session) return { handled: false };
+    await markInvoiceSucceeded(env, session as Record<string, unknown>);
+    return { handled: true };
+  }
+
+  if (eventType === 'invoice.payment_failed') {
+    if (!session) return { handled: false };
+    await markInvoiceFailed(env, session as Record<string, unknown>);
+    return { handled: true };
+  }
+
+  if (eventType === 'customer.subscription.deleted') {
+    if (!session) return { handled: false };
+    await markSubscriptionDeleted(env, session as Record<string, unknown>);
+    return { handled: true };
+  }
 
   if (eventType === 'checkout.session.completed') {
     if (!session) return { handled: false };

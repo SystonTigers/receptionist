@@ -11,6 +11,7 @@ import {
   listBookings,
   updateBooking
 } from '../services/booking-service';
+import { requireRole } from '../lib/authorization';
 
 const router = Router({ base: '/bookings' });
 
@@ -36,6 +37,11 @@ router.get('/', async (request: TenantScopedRequest, env: Env) => {
 });
 
 router.post('/', async (request: TenantScopedRequest, env: Env) => {
+  const forbidden = requireRole(request, ['owner', 'admin', 'staff'], 'create booking');
+  if (forbidden instanceof Response) {
+    return forbidden;
+  }
+
   const body = await request.json();
   const parsed = bookingCreateSchema.safeParse(body);
   if (!parsed.success) {
@@ -51,6 +57,11 @@ router.post('/', async (request: TenantScopedRequest, env: Env) => {
 });
 
 router.patch('/:id', async (request: RequestWithParams, env: Env) => {
+  const forbidden = requireRole(request, ['owner', 'admin', 'staff'], 'update booking');
+  if (forbidden instanceof Response) {
+    return forbidden;
+  }
+
   const bookingId = request.params?.id;
   if (!bookingId) {
     return JsonResponse.error('Missing booking id', 400);
@@ -67,6 +78,11 @@ router.patch('/:id', async (request: RequestWithParams, env: Env) => {
 });
 
 router.delete('/:id', async (request: RequestWithParams, env: Env) => {
+  const forbidden = requireRole(request, ['owner', 'admin', 'staff'], 'cancel booking');
+  if (forbidden instanceof Response) {
+    return forbidden;
+  }
+
   const bookingId = request.params?.id;
   if (!bookingId) {
     return JsonResponse.error('Missing booking id', 400);
