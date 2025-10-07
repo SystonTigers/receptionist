@@ -72,16 +72,3 @@ export async function getDashboardSummary(env: Env, tenantId: string) {
   };
 }
 
-export async function getUsageMetrics(env: Env, tenantId: string) {
-  const client = getClient(env);
-  const { data, error } = await client
-    .from('usage_metrics')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('occurred_at', { ascending: false })
-    .limit(100);
-  if (error) {
-    throw new Error(`Failed to fetch usage metrics: ${error.message}`);
-  }
-  return data ?? [];
-}

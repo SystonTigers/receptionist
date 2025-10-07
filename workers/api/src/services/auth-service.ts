@@ -27,7 +27,8 @@ export async function createTenantWithAdmin(input: unknown, env: Env) {
     name: payload.tenantName,
     slug: payload.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     contact_email: payload.email,
-    contact_phone: payload.phone ?? null
+    contact_phone: payload.phone ?? null,
+    tier: 'starter'
   });
 
   const passwordHash = await hashPassword(payload.password);

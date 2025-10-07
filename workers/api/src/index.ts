@@ -14,7 +14,9 @@ import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
 import { bookingRouter } from './routes/bookings';
 import { assistRouter } from './routes/assist';
+import { checkUsageQuota, recordUsageEvent } from './services/usage-service';
 import { withFeatureFlags } from './middleware/features';
+
 
 const router = Router();
 
@@ -58,6 +60,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
   }
   scoped = authResult;
 
+  if (scoped.tenantId) {
+    await checkUsageQuota(env, scoped.tenantId, 'api.call', 1);
+    const url = new URL(request.url);
+    ctx.waitUntil(
+      recordUsageEvent(env, scoped.tenantId, 'api.call', {
+        metadata: {
+          path: url.pathname,
+          method: request.method
+        }
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Failed to record API usage event', { tenantId: scoped.tenantId, message });
+      })
+    );
+  }
   const featuresResult = await withFeatureFlags(scoped, env, ctx);
   if (featuresResult instanceof Response) {
     return featuresResult;
