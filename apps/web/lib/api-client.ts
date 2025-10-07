@@ -7,6 +7,7 @@ export async function apiFetch<T>(path: string, options: RequestInit & { tenantI
   const supabase = createBrowserSupabaseClient();
   const session = (await supabase.auth.getSession()).data.session;
   const tenantId = options.tenantId ?? session?.user.user_metadata?.tenant_id;
+  const userRole = session?.user.user_metadata?.role as string | undefined;
   if (!tenantId) {
     throw new Error('Missing tenant context');
   }
@@ -23,6 +24,7 @@ export async function apiFetch<T>(path: string, options: RequestInit & { tenantI
       'Content-Type': 'application/json',
       ...(options.headers || {}),
       'x-tenant-id': tenantId,
+      ...(userRole ? { 'x-user-role': userRole } : {}),
       Authorization: session ? `Bearer ${session.access_token}` : ''
     }
   });

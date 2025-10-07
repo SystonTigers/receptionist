@@ -1,3 +1,6 @@
+
+type Role = import('@ai-hairdresser/shared').Role;
+
 import type { FeatureCode, TenantPlanAccess } from '@ai-hairdresser/shared';
 
 interface Env {
@@ -24,6 +27,7 @@ interface Env {
 type TenantScopedRequest = Request & {
   tenantId?: string;
   userId?: string;
+  role?: Role;
   role?: string;
   featureAccess?: TenantPlanAccess;
   hasFeature?: (feature: FeatureCode) => boolean;

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEventHandler } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from 'react';
 import Head from 'next/head';
 import type { GetServerSideProps } from 'next';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -7,7 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useTenant } from '@/hooks/useTenant';
 import { createSupabaseServerClient } from '@/lib/supabase-server-client';
+import type { Role } from '@ai-hairdresser/shared';
 import { DEFAULT_TIMEZONE } from '@ai-hairdresser/shared';
+import { useTenantUsers } from '@/hooks/useTenantUsers';
 
 type ServiceFormValue = {
   id?: string;
@@ -40,6 +42,8 @@ type TenantSettingsPageProps = {
 };
 
 const TIME_REGEX = /^\d{2}:\d{2}$/;
+
+const ROLE_OPTIONS: Role[] = ['owner', 'admin', 'staff', 'viewer'];
 
 const serviceSchema = z.object({
   id: z.string().uuid().optional(),
@@ -165,6 +169,46 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
   const [timezoneOptions] = useState<string[]>(() => getTimezoneOptions());
   const [logoUploading, setLogoUploading] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { users: teamUsers, invitations, loading: usersLoading, error: usersError, mutate: mutateTenantUsers } =
+    useTenantUsers();
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<Role>('staff');
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [teamMessage, setTeamMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [roleUpdatingUser, setRoleUpdatingUser] = useState<string | null>(null);
+  const [removingInvitation, setRemovingInvitation] = useState<string | null>(null);
+  const [copiedInvitationId, setCopiedInvitationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const role = (data.user?.user_metadata?.role as Role | undefined) ?? null;
+      setCurrentUserRole(role);
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!copiedInvitationId) {
+      return;
+    }
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopiedInvitationId(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copiedInvitationId]);
+
+  const pendingInvitations = useMemo(
+    () => invitations.filter((invite) => invite.status === 'pending'),
+    [invitations]
+  );
+
+  const canInvite = currentUserRole === 'owner' || currentUserRole === 'admin';
+  const canEditRoles = currentUserRole === 'owner';
+  const inviteRoleOptions = canEditRoles ? ROLE_OPTIONS : ROLE_OPTIONS.filter((role) => role !== 'owner');
 
   const {
     control,
@@ -233,6 +277,137 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
     } finally {
       setLogoUploading(false);
       event.target.value = '';
+    }
+  };
+
+  const handleInviteSubmit = async () => {
+    if (!canInvite) {
+      setInviteStatus({ type: 'error', message: 'You do not have permission to invite users.' });
+      return;
+    }
+
+    const normalisedEmail = inviteEmail.trim().toLowerCase();
+    if (!normalisedEmail) {
+      setInviteStatus({ type: 'error', message: 'Enter an email address.' });
+      return;
+    }
+
+    setInviteStatus(null);
+    setTeamMessage(null);
+    setInviteSubmitting(true);
+
+    try {
+      const response = await fetch('/api/tenants/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: normalisedEmail, role: inviteRole })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error((payload as { error?: string }).error ?? 'Failed to send invitation');
+      }
+
+      setInviteStatus({ type: 'success', message: 'Invitation sent successfully.' });
+      setInviteEmail('');
+      await mutateTenantUsers();
+    } catch (error) {
+      console.error('Invite create error', error);
+      setInviteStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to send invitation.'
+      });
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, role: Role) => {
+    const existing = teamUsers.find((user) => user.id === userId);
+    if (existing?.role === role) {
+      return;
+    }
+
+    setTeamMessage(null);
+    setRoleUpdatingUser(userId);
+
+    try {
+      const response = await fetch(`/api/tenants/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ role })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error((payload as { error?: string }).error ?? 'Failed to update role');
+      }
+
+      setTeamMessage({ type: 'success', message: 'Role updated successfully.' });
+      await mutateTenantUsers();
+    } catch (error) {
+      console.error('Role update error', error);
+      setTeamMessage({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to update role.'
+      });
+    } finally {
+      setRoleUpdatingUser(null);
+    }
+  };
+
+  const handleRemoveInvitation = async (invitationId: string) => {
+    setTeamMessage(null);
+    setRemovingInvitation(invitationId);
+
+    try {
+      const response = await fetch(`/api/tenants/invitations/${invitationId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error((payload as { error?: string }).error ?? 'Failed to remove invitation');
+      }
+
+      setTeamMessage({ type: 'success', message: 'Invitation removed.' });
+      await mutateTenantUsers();
+    } catch (error) {
+      console.error('Invitation delete error', error);
+      setTeamMessage({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to remove invitation.'
+      });
+    } finally {
+      setRemovingInvitation(null);
+    }
+  };
+
+  const handleCopyInvitationLink = async (invitationId: string, token: string) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const acceptUrl = `${window.location.origin}/auth/accept-invite?token=${token}`;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(acceptUrl);
+        setCopiedInvitationId(invitationId);
+        setTeamMessage({ type: 'success', message: 'Invite link copied to clipboard.' });
+      } else {
+        throw new Error('Clipboard access unavailable');
+      }
+    } catch (error) {
+      console.error('Copy invite link failed', error);
+      setTeamMessage({
+        type: 'error',
+        message: `Copy this link manually: ${acceptUrl}`
+      });
     }
   };
 
@@ -503,6 +678,138 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
             </div>
           </section>
 
+          <section>
+            <h2>Team access</h2>
+            <p className="section-hint">Invite colleagues and control their access to the receptionist dashboard.</p>
+
+            {teamMessage && <p className={`message ${teamMessage.type}`}>{teamMessage.message}</p>}
+            {inviteStatus && <p className={`message ${inviteStatus.type}`}>{inviteStatus.message}</p>}
+            {usersError && <p className="message error">Unable to load team members.</p>}
+
+            <div className="team-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Team member</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usersLoading ? (
+                    <tr>
+                      <td colSpan={3}>Loading team…</td>
+                    </tr>
+                  ) : teamUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={3}>No team members yet.</td>
+                    </tr>
+                  ) : (
+                    teamUsers.map((user) => {
+                      const disabled = !canEditRoles || user.id === currentUserId;
+                      return (
+                        <tr key={user.id}>
+                          <td>
+                            <div className="team-name">
+                              <strong>{`${user.firstName} ${user.lastName}`.trim() || user.email}</strong>
+                              {user.id === currentUserId && <span className="badge">You</span>}
+                            </div>
+                          </td>
+                          <td>{user.email}</td>
+                          <td>
+                            {disabled ? (
+                              <span className="role-pill">{user.role}</span>
+                            ) : (
+                              <select
+                                value={user.role}
+                                disabled={roleUpdatingUser === user.id}
+                                onChange={(event) => handleRoleChange(user.id, event.target.value as Role)}
+                              >
+                                {ROLE_OPTIONS.map((role) => (
+                                  <option key={role} value={role}>
+                                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {roleUpdatingUser === user.id && <span className="pending">Updating…</span>}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="invite-area">
+              <h3>Invite a teammate</h3>
+              {canInvite ? (
+                <div className="invite-form">
+                  <label>
+                    <span>Email address</span>
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="team@salon.com"
+                    />
+                  </label>
+                  <label>
+                    <span>Role</span>
+                    <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as Role)}>
+                      {inviteRoleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" className="secondary" onClick={handleInviteSubmit} disabled={inviteSubmitting}>
+                    {inviteSubmitting ? 'Sending…' : 'Send invite'}
+                  </button>
+                </div>
+              ) : (
+                <p className="hint">Only owners or admins can invite new users.</p>
+              )}
+            </div>
+
+            <div className="invite-list">
+              <h3>Pending invitations</h3>
+              {pendingInvitations.length === 0 ? (
+                <p className="empty">No pending invitations.</p>
+              ) : (
+                <ul>
+                  {pendingInvitations.map((invite) => (
+                    <li key={invite.id}>
+                      <div>
+                        <strong>{invite.email}</strong>
+                        <span className="role-pill">{invite.role}</span>
+                      </div>
+                      <div className="invite-actions">
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => handleCopyInvitationLink(invite.id, invite.token)}
+                        >
+                          {copiedInvitationId === invite.id ? 'Copied!' : 'Copy invite link'}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => handleRemoveInvitation(invite.id)}
+                          disabled={removingInvitation === invite.id}
+                        >
+                          {removingInvitation === invite.id ? 'Removing…' : 'Revoke'}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+
           <footer className="form-footer">
             <button className="primary" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Saving…' : 'Save settings'}
@@ -713,6 +1020,92 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
           color: #94a3b8;
           font-style: italic;
         }
+        .team-table {
+          margin-top: 1rem;
+          overflow-x: auto;
+        }
+        .team-table table {
+          width: 100%;
+          border-collapse: collapse;
+          min-width: 480px;
+        }
+        .team-table th,
+        .team-table td {
+          padding: 0.75rem;
+          text-align: left;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .team-name {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .badge {
+          background: #e0f2fe;
+          color: #0369a1;
+          border-radius: 999px;
+          padding: 0.1rem 0.5rem;
+          font-size: 0.75rem;
+        }
+        .role-pill {
+          display: inline-block;
+          background: #f1f5f9;
+          border-radius: 999px;
+          padding: 0.25rem 0.75rem;
+          text-transform: capitalize;
+        }
+        .pending {
+          display: inline-block;
+          margin-left: 0.75rem;
+          font-size: 0.85rem;
+          color: #64748b;
+        }
+        .invite-area {
+          margin-top: 1.5rem;
+        }
+        .invite-form {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          align-items: flex-end;
+        }
+        .invite-form label {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          min-width: 220px;
+        }
+        .invite-list {
+          margin-top: 1.5rem;
+        }
+        .invite-list ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: grid;
+          gap: 0.75rem;
+        }
+        .invite-list li {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem 1rem;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+        }
+        .invite-list li > div:first-of-type {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+        .invite-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+        .hint {
+          color: #64748b;
+          margin: 0.5rem 0 0;
+        }
         .form-footer {
           display: flex;
           justify-content: flex-end;
@@ -737,6 +1130,19 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
           .form-footer .primary {
             width: 100%;
           }
+          .invite-form {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .invite-list li {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+          }
+          .invite-actions {
+            width: 100%;
+            justify-content: flex-start;
+          }
         }
       `}</style>
     </>
@@ -759,7 +1165,7 @@ export const getServerSideProps: GetServerSideProps<TenantSettingsPageProps> = a
   }
 
   const role = session.user.user_metadata?.role as string | undefined;
-  if (role && role !== 'admin') {
+  if (role && !['owner', 'admin'].includes(role)) {
     return {
       redirect: {
         destination: '/dashboard',
