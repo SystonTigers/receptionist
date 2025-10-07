@@ -6,6 +6,7 @@ type TenantRow = {
   slug: string;
   contact_email: string;
   contact_phone: string | null;
+  tier?: string;
 };
 
 type UserRow = {

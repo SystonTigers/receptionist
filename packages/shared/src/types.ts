@@ -3,12 +3,15 @@ export type UserId = string;
 export type AppointmentId = string;
 export type BookingId = string;
 
+export type TenantTier = 'starter' | 'growth' | 'scale';
+
 export interface Tenant {
   id: TenantId;
   name: string;
   slug: string;
   contactEmail: string;
   contactPhone?: string;
+  tier: TenantTier;
   createdAt: string;
   updatedAt: string;
   settings: TenantSettings;
@@ -178,7 +181,42 @@ export interface UsageMetric {
   tenantId: TenantId;
   metric: string;
   value: number;
+  metadata?: Record<string, unknown>;
   occurredAt: string;
+}
+
+export interface UsageEvent {
+  id: string;
+  tenantId: TenantId;
+  eventType: string;
+  quantity: number;
+  metadata?: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export type UsageMeasurement = 'events' | 'tokens';
+
+export interface UsageLimitDefinition {
+  label: string;
+  period: 'day' | 'month';
+  limit: number | null;
+  measurement: UsageMeasurement;
+}
+
+export interface UsageQuotaState {
+  eventType: string;
+  label: string;
+  period: 'day' | 'month';
+  measurement: UsageMeasurement;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+}
+
+export interface UsageOverview {
+  tier: TenantTier;
+  quotas: UsageQuotaState[];
+  metrics: UsageMetric[];
 }
 
 export interface AvailabilityRequest {

@@ -14,6 +14,7 @@ create table if not exists tenants (
   slug text unique not null,
   contact_email text not null,
   contact_phone text,
+  tier text not null default 'starter' check (tier in ('starter', 'growth', 'scale')),
   settings jsonb default '{}'::jsonb,
   created_at timestamp with time zone default timezone('utc', now()),
   updated_at timestamp with time zone default timezone('utc', now())
@@ -148,13 +149,27 @@ create table if not exists audit_logs (
   created_at timestamp with time zone default timezone('utc', now())
 );
 
+create table if not exists usage_events (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  event_type text not null,
+  quantity numeric default 1,
+  metadata jsonb default '{}'::jsonb,
+  occurred_at timestamp with time zone default timezone('utc', now())
+);
+
+create index if not exists usage_events_tenant_idx on usage_events (tenant_id, event_type, occurred_at);
+
 create table if not exists usage_metrics (
-  id uuid primary key,
+  id uuid primary key default uuid_generate_v4(),
   tenant_id uuid references tenants(id) on delete cascade,
   metric text not null,
   value numeric not null,
+  metadata jsonb default '{}'::jsonb,
   occurred_at timestamp with time zone default timezone('utc', now())
 );
+
+create unique index if not exists usage_metrics_period_idx on usage_metrics (tenant_id, metric, occurred_at);
 
 create table if not exists calendar_sync_tokens (
   id uuid primary key,
@@ -178,6 +193,7 @@ alter table messages enable row level security;
 alter table payment_transactions enable row level security;
 alter table audit_logs enable row level security;
 alter table usage_metrics enable row level security;
+alter table usage_events enable row level security;
 alter table calendar_sync_tokens enable row level security;
 
 -- Policies
@@ -245,3 +261,9 @@ create policy if not exists "audit_isolation" on audit_logs
 
 create policy if not exists "metrics_isolation" on usage_metrics
   for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "usage_events_isolation" on usage_events
+  for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "usage_events_mutation" on usage_events
+  for insert with check (tenant_id = get_auth_tenant_id());
