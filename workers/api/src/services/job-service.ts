@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
+import { detectSuspiciousPatterns, listAuditLogsSince } from './audit-log-service';
 import { recordUsageEvent } from './usage-service';
 
 import { sendNotification, type NotificationPayload } from './notification-service';
@@ -178,6 +179,30 @@ export async function sendReminderMessages(env: Env) {
   }
 
   console.log('Reminder sweep summary', summary);
+}
+
+export async function monitorSecurityEvents(env: Env) {
+  const windowEnd = new Date().toISOString();
+  const windowStart = dayjs(windowEnd).subtract(1, 'hour').toISOString();
+
+  try {
+    const logs = await listAuditLogsSince(env, windowStart);
+    const alerts = detectSuspiciousPatterns(logs, windowStart, windowEnd);
+
+    for (const alert of alerts) {
+      console.warn('Security alert detected', alert);
+    }
+
+    console.log('Security monitoring summary', {
+      windowStart,
+      windowEnd,
+      logsReviewed: logs.length,
+      alertsGenerated: alerts.length
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Security monitoring failed', { windowStart, windowEnd, message });
+  }
 }
 
 export async function purgeExpiredData(env: Env) {

@@ -9,6 +9,7 @@ import { useTenant } from '@/hooks/useTenant';
 import { createSupabaseServerClient } from '@/lib/supabase-server-client';
 import type { Role } from '@ai-hairdresser/shared';
 import { DEFAULT_TIMEZONE } from '@ai-hairdresser/shared';
+import { logAuditEvent } from '@/lib/audit-log-client';
 import { useTenantUsers } from '@/hooks/useTenantUsers';
 
 type ServiceFormValue = {
@@ -121,6 +122,10 @@ const FALLBACK_TIMEZONES = [
 
 const STORAGE_BUCKET = 'salon-assets';
 
+function cloneSettings(value: TenantSettingsFormValues): TenantSettingsFormValues {
+  return JSON.parse(JSON.stringify(value)) as TenantSettingsFormValues;
+}
+
 function getDefaultBusinessHours(): BusinessHourFormValue[] {
   return WEEKDAY_LABELS.map((_, index) => ({
     weekday: index,
@@ -169,6 +174,11 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
   const [timezoneOptions] = useState<string[]>(() => getTimezoneOptions());
   const [logoUploading, setLogoUploading] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const lastSavedValues = useRef<TenantSettingsFormValues>(cloneSettings(initialValues));
+
+  useEffect(() => {
+    lastSavedValues.current = cloneSettings(initialValues);
+  }, [initialValues]);
   const { users: teamUsers, invitations, loading: usersLoading, error: usersError, mutate: mutateTenantUsers } =
     useTenantUsers();
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -422,6 +432,7 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
 
     try {
       const values = parsed.data;
+      const beforeSnapshot = cloneSettings(lastSavedValues.current);
 
       const { error: settingsError } = await supabase.from('tenant_settings').upsert(
         {
@@ -493,6 +504,15 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
         }))
       };
 
+      await logAuditEvent({
+        action: 'settings.updated',
+        resource: 'tenant_settings',
+        resourceId: tenantId,
+        before: beforeSnapshot,
+        after: nextValues
+      });
+
+      lastSavedValues.current = cloneSettings(nextValues);
       reset(nextValues);
       setFormMessage({ type: 'success', message: 'Settings saved successfully.' });
     } catch (error) {

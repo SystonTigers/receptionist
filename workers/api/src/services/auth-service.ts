@@ -11,6 +11,7 @@ import {
 } from '../lib/supabase-admin';
 import { hashPassword, verifyPassword } from '../lib/passwords';
 import { buildTenantToken } from '../lib/tenant-token';
+import { recordAuditLog } from './audit-log-service';
 import { createTenantSubscription } from './subscription-service';
 
 const signupInput = z.object({
@@ -66,11 +67,31 @@ export async function authenticateUser(input: unknown, env: Env) {
   const payload = loginInput.parse(input);
   const user = await getUserByEmail(env, payload.email);
   if (!user) {
+    await recordAuditLog(env, {
+      tenantId: null,
+      userId: null,
+      action: 'auth.failed_login',
+      resource: 'auth',
+      resourceId: null,
+      after: {
+        hashedIdentifier: await hashIdentifier(payload.email)
+      }
+    });
     throw JsonResponse.error('Invalid credentials', 401);
   }
 
   const valid = await verifyPassword(payload.password, user.password_hash);
   if (!valid) {
+    await recordAuditLog(env, {
+      tenantId: user.tenant_id,
+      userId: user.id,
+      action: 'auth.failed_login',
+      resource: 'auth',
+      resourceId: user.id,
+      after: {
+        hashedIdentifier: await hashIdentifier(payload.email)
+      }
+    });
     throw JsonResponse.error('Invalid credentials', 401);
   }
 
@@ -84,6 +105,17 @@ export async function authenticateUser(input: unknown, env: Env) {
     }
   };
 }
+
+
+async function hashIdentifier(value: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value.trim().toLowerCase());
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const bytes = Array.from(new Uint8Array(digest));
+  return bytes
+    .slice(0, 8)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 
 const invitationAcceptanceInput = z.object({
   token: z.string().min(10),
@@ -134,4 +166,5 @@ export async function acceptInvitation(input: unknown, env: Env) {
       role: invitation.role
     }
   };
+
 }
