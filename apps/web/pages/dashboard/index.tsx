@@ -2,6 +2,7 @@ import useSWR from 'swr';
 import Link from 'next/link';
 import Head from 'next/head';
 import { apiFetch } from '@/lib/api-client';
+import { useFeatureFlag } from '@/lib/feature-flags';
 
 type DashboardSummary = {
   upcomingAppointments: number;
@@ -16,6 +17,8 @@ const fetcher = (path: string) => apiFetch<DashboardSummary>(path);
 
 export default function DashboardPage() {
   const { data, error } = useSWR('/dashboard/summary', fetcher);
+  const depositsFeature = useFeatureFlag('deposits_enabled');
+  const teamFeature = useFeatureFlag('team_accounts');
 
   return (
     <>
@@ -30,10 +33,11 @@ export default function DashboardPage() {
             <Link href="/dashboard/inbox">Inbox</Link>
             <Link href="/appointments">Appointments</Link>
             <Link href="/clients">Clients</Link>
-            <Link href="/stylists">Stylists</Link>
+            {(teamFeature.loading || teamFeature.enabled) && <Link href="/stylists">Stylists</Link>}
             <Link href="/admin/monitoring">Monitoring</Link>
             <Link href="/admin/marketing">Marketing Studio</Link>
             <Link href="/admin/billing">Billing</Link>
+            <Link href="/admin/plan">Subscription &amp; billing</Link>
           </nav>
         </aside>
         <section className="content">
@@ -58,14 +62,29 @@ export default function DashboardPage() {
                 <h2>Revenue (30d)</h2>
                 <p>£{data.revenueLast30d?.toFixed(2)}</p>
               </article>
-              <article>
-                <h2>Deposits pending</h2>
-                <p>{data.pendingDeposits}</p>
-              </article>
-              <article>
-                <h2>Deposits collected</h2>
-                <p>{data.collectedDeposits}</p>
-              </article>
+              {depositsFeature.enabled ? (
+                <>
+                  <article>
+                    <h2>Deposits pending</h2>
+                    <p>{data.pendingDeposits}</p>
+                  </article>
+                  <article>
+                    <h2>Deposits collected</h2>
+                    <p>{data.collectedDeposits}</p>
+                  </article>
+                </>
+              ) : (
+                !depositsFeature.loading && (
+                  <article className="locked">
+                    <h2>Deposits insights</h2>
+                    <p>
+                      Upgrade your plan to unlock deposit tracking and payment automation. Visit
+                      {' '}
+                      <Link href="/admin/plan">Subscription &amp; billing</Link> to compare tiers.
+                    </p>
+                  </article>
+                )
+              )}
             </div>
           )}
         </section>
@@ -104,6 +123,10 @@ export default function DashboardPage() {
           padding: 1.5rem;
           border-radius: 12px;
           box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+        .locked {
+          background: #f1f5f9;
+          color: #475569;
         }
         .error {
           color: #dc2626;

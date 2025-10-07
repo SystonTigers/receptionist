@@ -12,6 +12,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         'Content-Type': 'application/json',
         Authorization: req.headers.authorization ?? '',
         'x-tenant-id': req.headers['x-tenant-id'] as string,
+        'x-user-role': req.headers['x-user-role'] as string,
         'x-platform-origin': 'next-web'
       },
       body: JSON.stringify(req.body)

@@ -1,3 +1,8 @@
+
+type Role = import('@ai-hairdresser/shared').Role;
+
+import type { FeatureCode, TenantPlanAccess } from '@ai-hairdresser/shared';
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -9,6 +14,11 @@ interface Env {
   STRIPE_BILLING_PORTAL_RETURN_URL?: string;
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
+  SENDGRID_API_KEY?: string;
+  NOTIFICATION_DEFAULT_FROM_EMAIL?: string;
+  NOTIFICATION_DEFAULT_FROM_NAME?: string;
+  NOTIFICATION_FALLBACK_LOCALE?: string;
+  NOTIFICATION_FALLBACK_TIMEZONE?: string;
   OPENAI_API_KEY: string;
   BOOKING_DEPOSIT_SUCCESS_URL?: string;
   BOOKING_DEPOSIT_CANCEL_URL?: string;
@@ -24,6 +34,7 @@ interface Env {
 type TenantScopedRequest = Request & {
   tenantId?: string;
   userId?: string;
+  role?: Role;
   role?: string;
   subscription?: {
     status: string;
@@ -32,4 +43,6 @@ type TenantScopedRequest = Request & {
     nextBillingDate?: string | null;
     delinquent: boolean;
   };
+  featureAccess?: TenantPlanAccess;
+  hasFeature?: (feature: FeatureCode) => boolean;
 };
