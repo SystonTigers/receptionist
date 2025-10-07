@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
+import { recordUsageEvent } from './usage-service';
 
 import { sendNotification, type NotificationPayload } from './notification-service';
 
@@ -102,6 +103,12 @@ async function sendBookingNotification(env: Env, notification: BookingNotificati
   }
 
   return results;
+  await recordUsageEvent(env, notification.tenantId, 'reminder.queued', {
+    metadata: {
+      bookingId: notification.bookingId,
+      channels: notification.channels
+    }
+  });
 }
 
 export async function sendReminderMessages(env: Env) {
