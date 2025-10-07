@@ -25,7 +25,7 @@ create table if not exists users (
   email text not null unique,
   first_name text not null,
   last_name text not null,
-  role text not null check (role in ('admin','staff','stylist')),
+  role text not null check (role in ('owner','admin','staff','viewer')),
   password_hash text not null,
   created_at timestamp with time zone default timezone('utc', now()),
   updated_at timestamp with time zone default timezone('utc', now())
@@ -43,6 +43,25 @@ create table if not exists clients (
   created_at timestamp with time zone default timezone('utc', now()),
   updated_at timestamp with time zone default timezone('utc', now())
 );
+
+create table if not exists tenant_user_invitations (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  email text not null,
+  role text not null check (role in ('owner','admin','staff','viewer')),
+  token text not null,
+  status text not null check (status in ('pending','accepted','expired')) default 'pending',
+  invited_by uuid references users(id) on delete set null,
+  accepted_by uuid references users(id) on delete set null,
+  expires_at timestamp with time zone,
+  accepted_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now()),
+  unique (tenant_id, email)
+);
+
+create index if not exists tenant_user_invitations_token_idx on tenant_user_invitations (token);
+create index if not exists tenant_user_invitations_tenant_idx on tenant_user_invitations (tenant_id);
 
 create table if not exists stylists (
   id uuid primary key,
@@ -179,6 +198,7 @@ alter table payment_transactions enable row level security;
 alter table audit_logs enable row level security;
 alter table usage_metrics enable row level security;
 alter table calendar_sync_tokens enable row level security;
+alter table tenant_user_invitations enable row level security;
 
 -- Policies
 create policy if not exists "tenants_isolation" on tenants
@@ -218,13 +238,17 @@ create policy if not exists "bookings_mutation" on bookings
     tenant_id = get_auth_tenant_id()
     and exists (
       select 1 from users u
-      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+      where u.id = auth.uid()
+        and u.tenant_id = bookings.tenant_id
+        and u.role in ('owner','admin','staff')
     )
   ) with check (
     tenant_id = get_auth_tenant_id()
     and exists (
       select 1 from users u
-      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+      where u.id = auth.uid()
+        and u.tenant_id = bookings.tenant_id
+        and u.role in ('owner','admin','staff')
     )
   );
 
@@ -235,13 +259,66 @@ create policy if not exists "messages_mutation" on messages
   for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "payments_isolation" on payment_transactions
-  for select using (tenant_id = get_auth_tenant_id());
+  for select using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = payment_transactions.tenant_id
+        and u.role in ('owner','admin')
+    )
+  );
 
 create policy if not exists "payments_mutation" on payment_transactions
-  for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
+  for all using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = payment_transactions.tenant_id
+        and u.role in ('owner','admin')
+    )
+  ) with check (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = payment_transactions.tenant_id
+        and u.role in ('owner','admin')
+    )
+  );
 
 create policy if not exists "audit_isolation" on audit_logs
   for select using (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "metrics_isolation" on usage_metrics
   for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "tenant_invites_read" on tenant_user_invitations
+  for select using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = tenant_user_invitations.tenant_id
+    )
+  );
+
+create policy if not exists "tenant_invites_manage" on tenant_user_invitations
+  for all using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = tenant_user_invitations.tenant_id
+        and u.role in ('owner','admin')
+    )
+  ) with check (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = tenant_user_invitations.tenant_id
+        and u.role in ('owner','admin')
+    )
+  );

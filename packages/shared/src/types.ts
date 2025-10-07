@@ -23,7 +23,7 @@ export interface TenantSettings {
   cancellationPolicy: string;
 }
 
-export type Role = 'admin' | 'staff' | 'stylist';
+export type Role = 'owner' | 'admin' | 'staff' | 'viewer';
 
 export interface User {
   id: UserId;
@@ -33,6 +33,21 @@ export interface User {
   lastName: string;
   role: Role;
   passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantUserInvitation {
+  id: string;
+  tenantId: TenantId;
+  email: string;
+  role: Role;
+  status: 'pending' | 'accepted' | 'expired';
+  token: string;
+  invitedBy?: UserId;
+  acceptedBy?: UserId;
+  expiresAt?: string;
+  acceptedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

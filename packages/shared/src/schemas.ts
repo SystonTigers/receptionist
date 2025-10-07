@@ -22,8 +22,23 @@ export const userSchema = z.object({
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
-  role: z.enum(['admin', 'staff', 'stylist']),
+  role: z.enum(['owner', 'admin', 'staff', 'viewer']),
   passwordHash: z.string()
+});
+
+export const tenantInvitationSchema = z.object({
+  id: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  email: z.string().email(),
+  role: z.enum(['owner', 'admin', 'staff', 'viewer']),
+  status: z.enum(['pending', 'accepted', 'expired']),
+  token: z.string().min(10),
+  invitedBy: z.string().uuid().optional(),
+  acceptedBy: z.string().uuid().optional(),
+  expiresAt: z.string().datetime().optional(),
+  acceptedAt: z.string().datetime().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 });
 
 export const appointmentAvailabilitySchema = z.object({
@@ -56,3 +71,4 @@ export const bookingUpdateSchema = bookingCreateSchema.partial().refine(
 
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>;
 export type BookingUpdateInput = z.infer<typeof bookingUpdateSchema>;
+export type TenantInvitationInput = z.infer<typeof tenantInvitationSchema>;

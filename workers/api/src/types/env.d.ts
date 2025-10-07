@@ -1,3 +1,5 @@
+type Role = import('@ai-hairdresser/shared').Role;
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -22,5 +24,5 @@ interface Env {
 type TenantScopedRequest = Request & {
   tenantId?: string;
   userId?: string;
-  role?: string;
+  role?: Role;
 };
