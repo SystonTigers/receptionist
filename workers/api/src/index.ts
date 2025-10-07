@@ -14,6 +14,8 @@ import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
 import { bookingRouter } from './routes/bookings';
 import { assistRouter } from './routes/assist';
+import { withBilling } from './middleware/billing';
+import { billingRouter } from './routes/billing';
 import { checkUsageQuota, recordUsageEvent } from './services/usage-service';
 import { withFeatureFlags } from './middleware/features';
 
@@ -42,6 +44,8 @@ router.all('/dashboard', dashboardRouter.handle);
 router.all('/dashboard/*', dashboardRouter.handle);
 router.all('/marketing', marketingRouter.handle);
 router.all('/marketing/*', marketingRouter.handle);
+router.all('/billing', billingRouter.handle);
+router.all('/billing/*', billingRouter.handle);
 router.all('/webhooks', webhooksRouter.handle);
 router.all('/webhooks/*', webhooksRouter.handle);
 
@@ -60,6 +64,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
   }
   scoped = authResult;
 
+  const billingResult = await withBilling(scoped, env, ctx);
+  if (billingResult instanceof Response) {
+    return billingResult;
+  }
+  scoped = billingResult;
   if (scoped.tenantId) {
     await checkUsageQuota(env, scoped.tenantId, 'api.call', 1);
     const url = new URL(request.url);

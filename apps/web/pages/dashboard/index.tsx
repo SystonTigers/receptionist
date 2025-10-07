@@ -36,6 +36,7 @@ export default function DashboardPage() {
             {(teamFeature.loading || teamFeature.enabled) && <Link href="/stylists">Stylists</Link>}
             <Link href="/admin/monitoring">Monitoring</Link>
             <Link href="/admin/marketing">Marketing Studio</Link>
+            <Link href="/admin/billing">Billing</Link>
             <Link href="/admin/plan">Subscription &amp; billing</Link>
           </nav>
         </aside>

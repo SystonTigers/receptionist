@@ -20,6 +20,23 @@ create table if not exists tenants (
   updated_at timestamp with time zone default timezone('utc', now())
 );
 
+create table if not exists tenant_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null unique references tenants(id) on delete cascade,
+  stripe_customer_id text not null,
+  stripe_subscription_id text,
+  plan_id text not null,
+  status text not null,
+  start_date timestamp with time zone,
+  current_period_end timestamp with time zone,
+  next_billing_date timestamp with time zone,
+  delinquent boolean default false,
+  cancel_at timestamp with time zone,
+  cancelled_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
 create table if not exists users (
   id uuid primary key,
   tenant_id uuid references tenants(id) on delete cascade,
@@ -304,6 +321,7 @@ create table if not exists calendar_sync_tokens (
 
 -- Enable Row Level Security
 alter table tenants enable row level security;
+alter table tenant_subscriptions enable row level security;
 alter table users enable row level security;
 alter table clients enable row level security;
 alter table stylists enable row level security;
@@ -326,6 +344,12 @@ alter table tenant_plans enable row level security;
 -- Policies
 create policy if not exists "tenants_isolation" on tenants
   for select using (auth.uid() in (select id from users where tenant_id = tenants.id));
+
+create policy if not exists "subscription_isolation" on tenant_subscriptions
+  for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "subscription_update" on tenant_subscriptions
+  for update using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "users_isolation" on users
   for select using (tenant_id = get_auth_tenant_id());
