@@ -1,3 +1,5 @@
+
+import { normalizeError } from '@ai-hairdresser/shared';
 import type { Role } from '@ai-hairdresser/shared';
 import { JsonResponse } from '../lib/response';
 import { verifyTenantToken } from '../lib/tenant-token';
@@ -22,14 +24,20 @@ export async function withTenant(request: TenantScopedRequest, env: Env, _ctx: E
       request.userId = decoded.sub;
       request.role = decoded.role as Role;
     } catch (err) {
-      console.warn('Failed to decode tenant token', err);
+      request.logger?.warn('Failed to decode tenant token', {
+        error: normalizeError(err)
+      });
     }
   }
 
   if (!tenantId) {
+    request.logger?.warn('Missing tenant context for request', {
+      path: url.pathname
+    });
     return JsonResponse.error('Missing tenant context', 400);
   }
 
   request.tenantId = tenantId;
+  request.logger?.metric('auth.tenant_context.applied', 1);
   return request;
 }

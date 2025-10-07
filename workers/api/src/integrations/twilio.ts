@@ -1,15 +1,18 @@
-export function createTwilioClient(env: Env) {
+import { normalizeError, RequestLogger } from '@ai-hairdresser/shared';
+
+export function createTwilioClient(env: Env, logger?: RequestLogger) {
   const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } = env;
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-    console.warn('Twilio credentials missing');
+    logger?.warn('Twilio credentials missing');
   }
   return {
     async sendSms(to: string, body: string) {
-      console.log('TODO: send SMS via Twilio', { to, body });
+      logger?.debug('Dispatching SMS via Twilio', { to: maskRecipient(to) });
+      // TODO: integrate real Twilio client
       return { sid: 'SM-placeholder' };
     },
     async sendWhatsapp(to: string, body: string) {
-      console.log('TODO: send WhatsApp via Twilio', { to, body });
+      logger?.debug('Dispatching WhatsApp via Twilio', { to: maskRecipient(to) });
       return { sid: 'SM-whatsapp-placeholder' };
     }
   };
@@ -21,26 +24,33 @@ function maskRecipient(recipient: string) {
   return trimmed.length <= 4 ? `***${trimmed}` : `***${trimmed.slice(-4)}`;
 }
 
-export async function sendBookingNotification(env: Env, to: string, message: string) {
-  const client = createTwilioClient(env);
+export async function sendBookingNotification(
+  env: Env,
+  to: string,
+  message: string,
+  logger?: RequestLogger
+) {
+  const client = createTwilioClient(env, logger);
   const maxAttempts = 3;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await client.sendSms(to, message);
-      console.log('Booking notification dispatched via Twilio', {
+      logger?.info('Booking notification dispatched via Twilio', {
         attempt,
         to: maskRecipient(to)
       });
+      logger?.metric('messaging.outbound.success', 1, { dimension: 'sms' });
       return { success: true };
     } catch (error) {
       lastError = error;
-      console.error('Booking notification attempt failed', {
+      logger?.warn('Booking notification attempt failed', {
         attempt,
         to: maskRecipient(to),
-        error: error instanceof Error ? error.message : String(error)
+        error: normalizeError(error)
       });
+      logger?.metric('messaging.outbound.failure', 1, { dimension: 'sms' });
       if (attempt < maxAttempts) {
         const delay = 250 * Math.pow(2, attempt - 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -48,9 +58,9 @@ export async function sendBookingNotification(env: Env, to: string, message: str
     }
   }
 
-  console.error('Booking notification failed after retries', {
+  logger?.error('Booking notification failed after retries', {
     to: maskRecipient(to),
-    error: lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown')
+    error: normalizeError(lastError)
   });
 
   return { success: false, error: lastError };

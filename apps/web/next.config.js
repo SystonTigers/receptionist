@@ -4,7 +4,8 @@ const nextConfig = {
   experimental: {
     serverActions: true
   },
-  output: 'standalone'
+  output: 'standalone',
+  transpilePackages: ['@ai-hairdresser/shared']
 };
 
 module.exports = nextConfig;

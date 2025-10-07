@@ -15,7 +15,9 @@ export default defineConfig({
       '@/components': path.resolve(__dirname, 'components'),
       '@/lib': path.resolve(__dirname, 'lib'),
       '@/hooks': path.resolve(__dirname, 'hooks'),
-      '@/types': path.resolve(__dirname, '../..', 'packages/shared/src/types')
+      '@/styles': path.resolve(__dirname, 'styles'),
+      '@/types': path.resolve(__dirname, '../..', 'packages/shared/src/types'),
+      '@ai-hairdresser/shared': path.resolve(__dirname, '../..', 'packages/shared/src')
     }
   }
 });
