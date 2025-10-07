@@ -33,6 +33,7 @@ export default function DashboardPage() {
             <Link href="/stylists">Stylists</Link>
             <Link href="/admin/monitoring">Monitoring</Link>
             <Link href="/admin/marketing">Marketing Studio</Link>
+            <Link href="/admin/billing">Billing</Link>
           </nav>
         </aside>
         <section className="content">
