@@ -1,8 +1,18 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { isServerE2ETestEnvironment } from './e2e-flags';
+import { createE2EAdminSupabase } from './e2e-supabase-server';
 
 let cachedClient: SupabaseClient | null = null;
+let cachedE2EClient: SupabaseClient | null = null;
 
 export function getSupabaseServiceClient(): SupabaseClient {
+  if (isServerE2ETestEnvironment()) {
+    if (!cachedE2EClient) {
+      cachedE2EClient = createE2EAdminSupabase() as unknown as SupabaseClient;
+    }
+    return cachedE2EClient;
+  }
+
   if (cachedClient) {
     return cachedClient;
   }
