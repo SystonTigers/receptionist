@@ -1,0 +1,86 @@
+[
+  {
+    "id": "01",
+    "title": "Responsive UI & UX Polish",
+    "file": "codex-tasks/01-ui-polish.md",
+    "status": "pending",
+    "priority": "high"
+  },
+  {
+    "id": "02",
+    "title": "PWA Support",
+    "file": "codex-tasks/02-pwa-support.md",
+    "status": "pending",
+    "priority": "high"
+  },
+  {
+    "id": "03",
+    "title": "Custom Domains for Tenants",
+    "file": "codex-tasks/03-custom-domains.md",
+    "status": "pending",
+    "priority": "high"
+  },
+  {
+    "id": "04",
+    "title": "GDPR & Legal Compliance Tools",
+    "file": "codex-tasks/04-gdpr-compliance.md",
+    "status": "pending",
+    "priority": "high"
+  },
+  {
+    "id": "05",
+    "title": "Beta Program Workflow",
+    "file": "codex-tasks/05-beta-program.md",
+    "status": "pending",
+    "priority": "medium"
+  },
+  {
+    "id": "06",
+    "title": "In-App Support / Live Chat",
+    "file": "codex-tasks/06-in-app-support.md",
+    "status": "pending",
+    "priority": "medium"
+  },
+  {
+    "id": "07",
+    "title": "Developer CLI & Tenant Tools",
+    "file": "codex-tasks/07-developer-cli.md",
+    "status": "pending",
+    "priority": "medium"
+  },
+  {
+    "id": "08",
+    "title": "CI/CD & Deployment Automation",
+    "file": "codex-tasks/08-cicd-automation.md",
+    "status": "pending",
+    "priority": "medium"
+  },
+  {
+    "id": "09",
+    "title": "Internal Admin Dashboard",
+    "file": "codex-tasks/09-internal-admin-dashboard.md",
+    "status": "pending",
+    "priority": "medium"
+  },
+  {
+    "id": "10",
+    "title": "AI Booking Assistant & GPT Auto-Replies",
+    "file": "codex-tasks/10-ai-booking-assistant.md",
+    "status": "pending",
+    "priority": "high"
+  },
+  {
+    "id": "11",
+    "title": "Google Calendar & Zapier Integration",
+    "file": "codex-tasks/11-google-zapier-integration.md",
+    "status": "pending",
+    "priority": "medium"
+  },
+  {
+    "id": "12",
+    "title": "White-Labeling Support",
+    "file": "codex-tasks/12-white-labeling.md",
+    "status": "pending",
+    "priority": "medium"
+  }
+]
