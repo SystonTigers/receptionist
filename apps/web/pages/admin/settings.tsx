@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEventHandler } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from 'react';
 import Head from 'next/head';
 import type { GetServerSideProps } from 'next';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -8,6 +8,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useTenant } from '@/hooks/useTenant';
 import { createSupabaseServerClient } from '@/lib/supabase-server-client';
 import { DEFAULT_TIMEZONE } from '@ai-hairdresser/shared';
+import { logAuditEvent } from '@/lib/audit-log-client';
 
 type ServiceFormValue = {
   id?: string;
@@ -117,6 +118,10 @@ const FALLBACK_TIMEZONES = [
 
 const STORAGE_BUCKET = 'salon-assets';
 
+function cloneSettings(value: TenantSettingsFormValues): TenantSettingsFormValues {
+  return JSON.parse(JSON.stringify(value)) as TenantSettingsFormValues;
+}
+
 function getDefaultBusinessHours(): BusinessHourFormValue[] {
   return WEEKDAY_LABELS.map((_, index) => ({
     weekday: index,
@@ -165,6 +170,11 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
   const [timezoneOptions] = useState<string[]>(() => getTimezoneOptions());
   const [logoUploading, setLogoUploading] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const lastSavedValues = useRef<TenantSettingsFormValues>(cloneSettings(initialValues));
+
+  useEffect(() => {
+    lastSavedValues.current = cloneSettings(initialValues);
+  }, [initialValues]);
 
   const {
     control,
@@ -247,6 +257,7 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
 
     try {
       const values = parsed.data;
+      const beforeSnapshot = cloneSettings(lastSavedValues.current);
 
       const { error: settingsError } = await supabase.from('tenant_settings').upsert(
         {
@@ -318,6 +329,15 @@ export default function AdminSettingsPage({ tenantId, initialValues }: TenantSet
         }))
       };
 
+      await logAuditEvent({
+        action: 'settings.updated',
+        resource: 'tenant_settings',
+        resourceId: tenantId,
+        before: beforeSnapshot,
+        after: nextValues
+      });
+
+      lastSavedValues.current = cloneSettings(nextValues);
       reset(nextValues);
       setFormMessage({ type: 'success', message: 'Settings saved successfully.' });
     } catch (error) {

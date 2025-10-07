@@ -164,13 +164,16 @@ export interface PaymentTransaction {
 
 export interface AuditLog {
   id: string;
-  tenantId: TenantId;
-  actorId?: UserId;
+  tenantId: TenantId | null;
+  userId?: UserId | null;
   action: string;
   resource: string;
-  resourceId?: string;
-  changes?: Record<string, unknown>;
+  resourceId?: string | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
   createdAt: string;
+  userEmail?: string | null;
+  userName?: string | null;
 }
 
 export interface UsageMetric {

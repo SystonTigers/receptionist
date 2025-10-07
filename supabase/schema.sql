@@ -138,15 +138,18 @@ create table if not exists payment_transactions (
 );
 
 create table if not exists audit_logs (
-  id uuid primary key,
+  id uuid primary key default uuid_generate_v4(),
   tenant_id uuid references tenants(id) on delete cascade,
-  actor_id uuid references users(id),
+  user_id uuid references users(id),
   action text not null,
   resource text not null,
   resource_id text,
-  changes jsonb,
+  before jsonb,
+  after jsonb,
   created_at timestamp with time zone default timezone('utc', now())
 );
+
+create index if not exists audit_logs_tenant_created_idx on audit_logs (tenant_id, created_at desc);
 
 create table if not exists usage_metrics (
   id uuid primary key,
@@ -242,6 +245,9 @@ create policy if not exists "payments_mutation" on payment_transactions
 
 create policy if not exists "audit_isolation" on audit_logs
   for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "audit_insert" on audit_logs
+  for insert with check (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "metrics_isolation" on usage_metrics
   for select using (tenant_id = get_auth_tenant_id());

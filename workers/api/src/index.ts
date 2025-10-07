@@ -9,6 +9,7 @@ import { webhooksRouter } from './routes/webhooks';
 import { clientRouter } from './routes/clients';
 import { stylistRouter } from './routes/stylists';
 import { marketingRouter } from './routes/marketing';
+import { auditRouter } from './routes/audit';
 import { withErrorHandling } from './middleware/error-handler';
 import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
@@ -39,6 +40,8 @@ router.all('/dashboard', dashboardRouter.handle);
 router.all('/dashboard/*', dashboardRouter.handle);
 router.all('/marketing', marketingRouter.handle);
 router.all('/marketing/*', marketingRouter.handle);
+router.all('/audit', auditRouter.handle);
+router.all('/audit/*', auditRouter.handle);
 router.all('/webhooks', webhooksRouter.handle);
 router.all('/webhooks/*', webhooksRouter.handle);
 

@@ -12,6 +12,9 @@
       "@/hooks/*": [
         "hooks/*"
       ],
+      "@/styles/*": [
+        "styles/*"
+      ],
       "@/types": [
         "../../packages/shared/src/types"
       ],
