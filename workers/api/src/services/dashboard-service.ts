@@ -85,3 +85,28 @@ export async function getUsageMetrics(env: Env, tenantId: string) {
   }
   return data ?? [];
 }
+
+export async function getOnboardingAnalytics(env: Env) {
+  const client = getClient(env);
+  const [{ data: tenants, error: tenantError }, { data: progress, error: progressError }] = await Promise.all([
+    client.from('tenants').select('id, created_at'),
+    client.from('tenant_onboarding_progress').select('tenant_id, first_booking_completed_at')
+  ]);
+
+  if (tenantError) {
+    throw new Error(`Failed to load tenant data: ${tenantError.message}`);
+  }
+  if (progressError) {
+    throw new Error(`Failed to load onboarding progress: ${progressError.message}`);
+  }
+
+  const totalTenants = tenants?.length ?? 0;
+  const convertedTenants = (progress ?? []).filter((row) => Boolean(row.first_booking_completed_at)).length;
+  const conversionRate = totalTenants > 0 ? convertedTenants / totalTenants : 0;
+
+  return {
+    totalTenants,
+    convertedTenants,
+    conversionRate
+  };
+}

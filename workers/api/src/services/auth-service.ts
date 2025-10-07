@@ -3,6 +3,7 @@ import { JsonResponse } from '../lib/response';
 import { insertTenant, insertUser, getUserByEmail } from '../lib/supabase-admin';
 import { hashPassword, verifyPassword } from '../lib/passwords';
 import { buildTenantToken } from '../lib/tenant-token';
+import { initializeTenantOnboarding } from './onboarding-service';
 
 const signupInput = z.object({
   tenantName: z.string(),
@@ -32,6 +33,12 @@ export async function createTenantWithAdmin(input: unknown, env: Env) {
     last_name: 'Owner',
     role: 'admin',
     password_hash: passwordHash
+  });
+
+  await initializeTenantOnboarding(env, {
+    id: tenantId,
+    name: tenant.name,
+    contactEmail: tenant.contact_email
   });
 
   return {

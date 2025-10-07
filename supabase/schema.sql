@@ -165,6 +165,75 @@ create table if not exists calendar_sync_tokens (
   updated_at timestamp with time zone default timezone('utc', now())
 );
 
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'onboarding_email_template') then
+    create type onboarding_email_template as enum (
+      'welcome_day_0',
+      'welcome_day_1',
+      'welcome_day_7',
+      'nudge_branding',
+      'nudge_services',
+      'nudge_first_booking'
+    );
+  end if;
+end $$;
+
+create table if not exists notification_jobs (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  channel text not null check (channel in ('email', 'sms')),
+  template onboarding_email_template not null,
+  recipient text not null,
+  subject text,
+  payload jsonb default '{}'::jsonb,
+  send_at timestamp with time zone not null,
+  status text not null check (status in ('pending', 'sending', 'sent', 'failed', 'cancelled')) default 'pending',
+  attempts integer default 0,
+  last_error text,
+  sent_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now()),
+  unique (tenant_id, template)
+);
+
+create index if not exists notification_jobs_pending_idx on notification_jobs (status, send_at);
+
+create table if not exists tenant_onboarding_progress (
+  tenant_id uuid primary key references tenants(id) on delete cascade,
+  branding_completed_at timestamp with time zone,
+  services_completed_at timestamp with time zone,
+  first_booking_completed_at timestamp with time zone,
+  first_booking_conversion_days integer,
+  last_nudged_at timestamp with time zone,
+  last_step_reminded text,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+create table if not exists tenant_referral_codes (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  code text not null,
+  reward_type text not null check (reward_type in ('percentage', 'fixed_amount', 'credit')),
+  reward_value numeric(10,2) not null,
+  max_redemptions integer,
+  redemption_count integer default 0,
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now()),
+  unique (tenant_id, code)
+);
+
+create table if not exists tenant_referral_redemptions (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  referral_code_id uuid references tenant_referral_codes(id) on delete cascade,
+  invitee_email text,
+  invitee_tenant_id uuid references tenants(id),
+  redeemed_at timestamp with time zone default timezone('utc', now())
+);
+
 -- Enable Row Level Security
 alter table tenants enable row level security;
 alter table users enable row level security;
@@ -179,6 +248,10 @@ alter table payment_transactions enable row level security;
 alter table audit_logs enable row level security;
 alter table usage_metrics enable row level security;
 alter table calendar_sync_tokens enable row level security;
+alter table notification_jobs enable row level security;
+alter table tenant_onboarding_progress enable row level security;
+alter table tenant_referral_codes enable row level security;
+alter table tenant_referral_redemptions enable row level security;
 
 -- Policies
 create policy if not exists "tenants_isolation" on tenants
