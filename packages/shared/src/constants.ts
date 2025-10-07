@@ -12,3 +12,6 @@ export const AUDIT_RESOURCE_TYPES = [
   'message',
   'payment'
 ] as const;
+
+export const FEATURE_CODES = ['deposits_enabled', 'ai_assistant_enabled', 'team_accounts'] as const;
+export const PLAN_CODES = ['free', 'basic', 'pro'] as const;
