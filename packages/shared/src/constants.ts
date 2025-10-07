@@ -1,6 +1,7 @@
 import type { TenantTier, UsageLimitDefinition } from './types';
 
 export const SYSTEM_ROLES = ['admin', 'staff', 'stylist'] as const;
+export const SYSTEM_ROLES = ['owner', 'admin', 'staff', 'viewer'] as const;
 export const DEFAULT_TIMEZONE = 'Europe/London';
 export const SUPPORTED_CHANNELS = ['sms', 'whatsapp', 'voice'] as const;
 export const DEFAULT_PAGE_SIZE = 20;
@@ -69,3 +70,6 @@ export const TENANT_USAGE_LIMITS: Record<TenantTier, LimitMap> = {
     'api.call': unlimited(apiLimit)
   }
 };
+export const FEATURE_CODES = ['deposits_enabled', 'ai_assistant_enabled', 'team_accounts'] as const;
+export const PLAN_CODES = ['free', 'basic', 'pro'] as const;
+

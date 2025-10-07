@@ -1,6 +1,8 @@
 import useSWR from 'swr';
 import Head from 'next/head';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
+import { useFeatureFlag } from '@/lib/feature-flags';
 
 type StylistList = {
   stylists: Array<{
@@ -15,7 +17,9 @@ type StylistList = {
 const fetcher = (path: string) => apiFetch<StylistList>(path);
 
 export default function StylistsPage() {
-  const { data, error } = useSWR('/stylists', fetcher);
+  const teamFeature = useFeatureFlag('team_accounts');
+  const shouldFetch = teamFeature.enabled;
+  const { data, error } = useSWR(shouldFetch ? '/stylists' : null, fetcher);
 
   return (
     <>
@@ -25,22 +29,37 @@ export default function StylistsPage() {
       <main className="stylists">
         <header>
           <h1>Stylists</h1>
-          <button>Invite stylist (TODO)</button>
+          {teamFeature.enabled ? <button>Invite stylist (TODO)</button> : null}
         </header>
-        {error && <p className="error">Unable to load stylists</p>}
-        {!data && !error && <p>Loading…</p>}
-        {data && (
-          <div className="grid">
-            {data.stylists?.map((stylist) => (
-              <article key={stylist.id}>
-                <h3>
-                  {stylist.first_name} {stylist.last_name}
-                </h3>
-                <p>Specialties: {stylist.specialties?.join(', ') || '—'}</p>
-                <pre>{JSON.stringify(stylist.working_hours, null, 2)}</pre>
-              </article>
-            ))}
+        {teamFeature.loading && <p>Checking your plan…</p>}
+        {!teamFeature.loading && !teamFeature.enabled && (
+          <div className="locked">
+            <h2>Team accounts are locked</h2>
+            <p>
+              Your current subscription does not include team account management. Upgrade to the Basic plan to invite stylists
+              and manage staff scheduling.
+            </p>
+            <Link href="/admin/plan">Go to Subscription &amp; billing</Link>
           </div>
+        )}
+        {teamFeature.enabled && (
+          <>
+            {error && <p className="error">Unable to load stylists</p>}
+            {!data && !error && <p>Loading…</p>}
+            {data && (
+              <div className="grid">
+                {data.stylists?.map((stylist) => (
+                  <article key={stylist.id}>
+                    <h3>
+                      {stylist.first_name} {stylist.last_name}
+                    </h3>
+                    <p>Specialties: {stylist.specialties?.join(', ') || '—'}</p>
+                    <pre>{JSON.stringify(stylist.working_hours, null, 2)}</pre>
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
       <style jsx>{`
@@ -76,6 +95,18 @@ export default function StylistsPage() {
           border: none;
           padding: 0.5rem 1rem;
           border-radius: 8px;
+        }
+        .locked {
+          background: #f1f5f9;
+          border-radius: 12px;
+          padding: 2rem;
+          max-width: 640px;
+          box-shadow: inset 0 0 0 1px #cbd5f5;
+          margin-top: 2rem;
+        }
+        .locked :global(a) {
+          color: #2563eb;
+          font-weight: 600;
         }
         .error {
           color: #dc2626;

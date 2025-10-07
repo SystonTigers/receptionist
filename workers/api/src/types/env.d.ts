@@ -1,3 +1,8 @@
+
+type Role = import('@ai-hairdresser/shared').Role;
+
+import type { FeatureCode, TenantPlanAccess } from '@ai-hairdresser/shared';
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -22,5 +27,8 @@ interface Env {
 type TenantScopedRequest = Request & {
   tenantId?: string;
   userId?: string;
+  role?: Role;
   role?: string;
+  featureAccess?: TenantPlanAccess;
+  hasFeature?: (feature: FeatureCode) => boolean;
 };

@@ -1,3 +1,4 @@
+import type { Role } from '@ai-hairdresser/shared';
 import { JsonResponse } from '../lib/response';
 import { verifyTenantToken } from '../lib/tenant-token';
 
@@ -19,7 +20,7 @@ export async function withTenant(request: TenantScopedRequest, env: Env, _ctx: E
       const decoded = await verifyTenantToken(token, env.MULTITENANT_SIGNING_KEY);
       tenantId = decoded.tenantId;
       request.userId = decoded.sub;
-      request.role = decoded.role;
+      request.role = decoded.role as Role;
     } catch (err) {
       console.warn('Failed to decode tenant token', err);
     }

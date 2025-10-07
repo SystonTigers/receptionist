@@ -26,7 +26,7 @@ create table if not exists users (
   email text not null unique,
   first_name text not null,
   last_name text not null,
-  role text not null check (role in ('admin','staff','stylist')),
+  role text not null check (role in ('owner','admin','staff','viewer')),
   password_hash text not null,
   created_at timestamp with time zone default timezone('utc', now()),
   updated_at timestamp with time zone default timezone('utc', now())
@@ -44,6 +44,25 @@ create table if not exists clients (
   created_at timestamp with time zone default timezone('utc', now()),
   updated_at timestamp with time zone default timezone('utc', now())
 );
+
+create table if not exists tenant_user_invitations (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  email text not null,
+  role text not null check (role in ('owner','admin','staff','viewer')),
+  token text not null,
+  status text not null check (status in ('pending','accepted','expired')) default 'pending',
+  invited_by uuid references users(id) on delete set null,
+  accepted_by uuid references users(id) on delete set null,
+  expires_at timestamp with time zone,
+  accepted_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now()),
+  unique (tenant_id, email)
+);
+
+create index if not exists tenant_user_invitations_token_idx on tenant_user_invitations (token);
+create index if not exists tenant_user_invitations_tenant_idx on tenant_user_invitations (tenant_id);
 
 create table if not exists stylists (
   id uuid primary key,
@@ -138,6 +157,52 @@ create table if not exists payment_transactions (
   updated_at timestamp with time zone default timezone('utc', now())
 );
 
+create table if not exists plans (
+  id uuid primary key default uuid_generate_v4(),
+  code text unique not null,
+  name text not null,
+  description text,
+  monthly_price numeric(10,2),
+  currency text default 'gbp',
+  grace_period_days integer default 7,
+  is_active boolean default true,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+create table if not exists features (
+  code text primary key,
+  name text not null,
+  description text,
+  created_at timestamp with time zone default timezone('utc', now())
+);
+
+create table if not exists plan_features (
+  plan_id uuid references plans(id) on delete cascade,
+  feature_code text references features(code) on delete cascade,
+  created_at timestamp with time zone default timezone('utc', now()),
+  primary key (plan_id, feature_code)
+);
+
+create table if not exists tenant_plans (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  plan_id uuid references plans(id) on delete set null,
+  status text not null check (status in ('trialing','active','past_due','cancelled','expired')) default 'active',
+  billing_status text,
+  billing_provider text,
+  billing_reference text,
+  current_period_start timestamp with time zone default timezone('utc', now()),
+  current_period_end timestamp with time zone,
+  grace_period_ends_at timestamp with time zone,
+  cancel_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+create index if not exists tenant_plans_tenant_idx on tenant_plans (tenant_id, created_at desc);
+
 create table if not exists audit_logs (
   id uuid primary key,
   tenant_id uuid references tenants(id) on delete cascade,
@@ -195,6 +260,8 @@ alter table audit_logs enable row level security;
 alter table usage_metrics enable row level security;
 alter table usage_events enable row level security;
 alter table calendar_sync_tokens enable row level security;
+alter table tenant_user_invitations enable row level security;
+alter table tenant_plans enable row level security;
 
 -- Policies
 create policy if not exists "tenants_isolation" on tenants
@@ -234,13 +301,17 @@ create policy if not exists "bookings_mutation" on bookings
     tenant_id = get_auth_tenant_id()
     and exists (
       select 1 from users u
-      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+      where u.id = auth.uid()
+        and u.tenant_id = bookings.tenant_id
+        and u.role in ('owner','admin','staff')
     )
   ) with check (
     tenant_id = get_auth_tenant_id()
     and exists (
       select 1 from users u
-      where u.id = auth.uid() and u.tenant_id = bookings.tenant_id
+      where u.id = auth.uid()
+        and u.tenant_id = bookings.tenant_id
+        and u.role in ('owner','admin','staff')
     )
   );
 
@@ -251,10 +322,34 @@ create policy if not exists "messages_mutation" on messages
   for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "payments_isolation" on payment_transactions
-  for select using (tenant_id = get_auth_tenant_id());
+  for select using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = payment_transactions.tenant_id
+        and u.role in ('owner','admin')
+    )
+  );
 
 create policy if not exists "payments_mutation" on payment_transactions
-  for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
+  for all using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = payment_transactions.tenant_id
+        and u.role in ('owner','admin')
+    )
+  ) with check (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = payment_transactions.tenant_id
+        and u.role in ('owner','admin')
+    )
+  );
 
 create policy if not exists "audit_isolation" on audit_logs
   for select using (tenant_id = get_auth_tenant_id());
@@ -267,3 +362,74 @@ create policy if not exists "usage_events_isolation" on usage_events
 
 create policy if not exists "usage_events_mutation" on usage_events
   for insert with check (tenant_id = get_auth_tenant_id());
+create policy if not exists "tenant_invites_read" on tenant_user_invitations
+  for select using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = tenant_user_invitations.tenant_id
+    )
+  );
+
+create policy if not exists "tenant_invites_manage" on tenant_user_invitations
+  for all using (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = tenant_user_invitations.tenant_id
+        and u.role in ('owner','admin')
+    )
+  ) with check (
+    tenant_id = get_auth_tenant_id()
+    and exists (
+      select 1 from users u
+      where u.id = auth.uid()
+        and u.tenant_id = tenant_user_invitations.tenant_id
+        and u.role in ('owner','admin')
+    )
+  );
+create policy if not exists "tenant_plans_isolation" on tenant_plans
+  for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "tenant_plans_mutation" on tenant_plans
+  for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
+
+insert into features (code, name, description)
+values
+  ('deposits_enabled', 'Deposits & Payments', 'Collect booking deposits and payment intents'),
+  ('ai_assistant_enabled', 'AI Assistant', 'Access AI-generated responses and automations'),
+  ('team_accounts', 'Team Accounts', 'Invite and manage team members')
+on conflict (code) do update set
+  name = excluded.name,
+  description = excluded.description;
+
+insert into plans (code, name, description, monthly_price, currency, grace_period_days, is_active)
+values
+  ('free', 'Free', 'Core receptionist tools for solo stylists', 0, 'gbp', 7, true),
+  ('basic', 'Basic', 'Deposits and team collaboration toolkit', 49, 'gbp', 10, true),
+  ('pro', 'Pro', 'Full AI automation suite with premium support', 99, 'gbp', 14, true)
+on conflict (code) do update set
+  name = excluded.name,
+  description = excluded.description,
+  monthly_price = excluded.monthly_price,
+  currency = excluded.currency,
+  grace_period_days = excluded.grace_period_days,
+  is_active = excluded.is_active,
+  updated_at = timezone('utc', now());
+
+insert into plan_features (plan_id, feature_code)
+select p.id, f.code
+from plans p
+join features f on f.code in ('team_accounts', 'deposits_enabled')
+where p.code = 'basic'
+on conflict do nothing;
+
+insert into plan_features (plan_id, feature_code)
+select p.id, f.code
+from plans p
+join features f on f.code in ('team_accounts', 'deposits_enabled', 'ai_assistant_enabled')
+where p.code = 'pro'
+on conflict do nothing;
+

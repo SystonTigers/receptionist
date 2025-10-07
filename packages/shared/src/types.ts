@@ -4,6 +4,10 @@ export type AppointmentId = string;
 export type BookingId = string;
 
 export type TenantTier = 'starter' | 'growth' | 'scale';
+export type FeatureCode = 'deposits_enabled' | 'ai_assistant_enabled' | 'team_accounts';
+export type PlanCode = 'free' | 'basic' | 'pro';
+export type TenantPlanStatus = 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired';
+
 
 export interface Tenant {
   id: TenantId;
@@ -26,7 +30,7 @@ export interface TenantSettings {
   cancellationPolicy: string;
 }
 
-export type Role = 'admin' | 'staff' | 'stylist';
+export type Role = 'owner' | 'admin' | 'staff' | 'viewer';
 
 export interface User {
   id: UserId;
@@ -36,6 +40,21 @@ export interface User {
   lastName: string;
   role: Role;
   passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantUserInvitation {
+  id: string;
+  tenantId: TenantId;
+  email: string;
+  role: Role;
+  status: 'pending' | 'accepted' | 'expired';
+  token: string;
+  invitedBy?: UserId;
+  acceptedBy?: UserId;
+  expiresAt?: string;
+  acceptedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -241,4 +260,31 @@ export interface CalendarSyncToken {
   googleCalendarId: string;
   syncToken: string;
   updatedAt: string;
+}
+
+export interface PlanSummary {
+  code: PlanCode;
+  name: string;
+  description?: string | null;
+  monthlyPrice?: number | null;
+  currency?: string | null;
+  gracePeriodDays: number;
+  features: FeatureCode[];
+}
+
+export interface TenantPlanAccess {
+  plan: PlanSummary;
+  effectivePlan: PlanSummary;
+  status: TenantPlanStatus;
+  billingStatus?: string | null;
+  features: FeatureCode[];
+  isInGracePeriod: boolean;
+  currentPeriodEnd?: string | null;
+  gracePeriodEndsAt?: string | null;
+  downgradedTo?: PlanSummary | null;
+}
+
+export interface TenantPlanResponse {
+  tenantPlan: TenantPlanAccess;
+  availablePlans: PlanSummary[];
 }
