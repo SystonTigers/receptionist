@@ -130,6 +130,63 @@ create table if not exists bookings (
 
 create index if not exists bookings_tenant_start_idx on bookings (tenant_id, start_time);
 
+create table if not exists notification_templates (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  type text not null,
+  channel text not null check (channel in ('email','sms')),
+  locale text default 'default',
+  subject_template text,
+  body_html_template text,
+  body_text_template text,
+  timezone text,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+create unique index if not exists notification_templates_identity_idx
+  on notification_templates (
+    coalesce(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    type,
+    channel,
+    coalesce(locale, 'default')
+  );
+
+create table if not exists notification_identities (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  provider text not null,
+  config jsonb not null,
+  created_at timestamp with time zone default timezone('utc', now()),
+  updated_at timestamp with time zone default timezone('utc', now())
+);
+
+create unique index if not exists notification_identities_tenant_provider_idx
+  on notification_identities (tenant_id, provider);
+
+create table if not exists notification_logs (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  notification_type text not null,
+  channel text not null,
+  provider text,
+  template_id uuid references notification_templates(id),
+  status text not null check (status in ('queued','sent','failed')),
+  recipient_hash text,
+  recipient_hint text,
+  locale text,
+  timezone text,
+  error text,
+  metadata jsonb default '{}'::jsonb,
+  payload jsonb,
+  provider_message_id text,
+  created_at timestamp with time zone default timezone('utc', now())
+);
+
+create index if not exists notification_logs_tenant_created_idx
+  on notification_logs (tenant_id, created_at desc);
+
 create table if not exists messages (
   id uuid primary key,
   tenant_id uuid references tenants(id) on delete cascade,
@@ -260,6 +317,9 @@ alter table audit_logs enable row level security;
 alter table usage_metrics enable row level security;
 alter table usage_events enable row level security;
 alter table calendar_sync_tokens enable row level security;
+alter table notification_templates enable row level security;
+alter table notification_identities enable row level security;
+alter table notification_logs enable row level security;
 alter table tenant_user_invitations enable row level security;
 alter table tenant_plans enable row level security;
 
@@ -280,6 +340,22 @@ create policy if not exists "clients_mutation" on clients
   for all using (tenant_id = get_auth_tenant_id()) with check (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "appointments_isolation" on appointments
+  for select using (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "notification_templates_read" on notification_templates
+  for select using (
+    tenant_id = get_auth_tenant_id() or tenant_id is null
+  );
+
+create policy if not exists "notification_templates_mutation" on notification_templates
+  for all using (tenant_id = get_auth_tenant_id())
+  with check (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "notification_identities_tenant" on notification_identities
+  for all using (tenant_id = get_auth_tenant_id())
+  with check (tenant_id = get_auth_tenant_id());
+
+create policy if not exists "notification_logs_read" on notification_logs
   for select using (tenant_id = get_auth_tenant_id());
 
 create policy if not exists "appointments_mutation" on appointments
