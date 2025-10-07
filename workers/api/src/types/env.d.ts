@@ -1,3 +1,5 @@
+import type { RequestLogger } from '@ai-hairdresser/shared';
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -17,10 +19,18 @@ interface Env {
   SUPABASE_DB_PASSWORD?: string;
   SUPABASE_DB_PORT?: string;
   WORKER_ENVIRONMENT?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_SAMPLE_RATE?: string;
+  SENTRY_TRACES_SAMPLE_RATE?: string;
+  SENTRY_RELEASE?: string;
+  SYSTEM_VERSION?: string;
 }
 
 type TenantScopedRequest = Request & {
   tenantId?: string;
   userId?: string;
   role?: string;
+  requestId?: string;
+  logger?: RequestLogger;
 };

@@ -63,8 +63,31 @@ describe('appointments API route', () => {
     expect(res._getJSONData()).toEqual({ error: 'Boom' });
   });
 
+  it('forwards POST requests to the platform API', async () => {
+    const json = vi.fn().mockResolvedValue({ error: 'Method Not Allowed' });
+    const fetchMock = vi.spyOn(global, 'fetch' as never).mockResolvedValue({
+      ok: false,
+      status: 405,
+      json
+    } as unknown as Response);
+
+    const { res } = await invoke('POST', { foo: 'bar' });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api.example.com/appointments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token',
+        'x-tenant-id': 'tenant-123',
+        'x-platform-origin': 'next-web'
+      },
+      body: JSON.stringify({ foo: 'bar' })
+    });
+    expect(res._getStatusCode()).toBe(405);
+    expect(res._getJSONData()).toEqual({ error: 'Method Not Allowed' });
+  });
+
   it.each([
-    ['POST'],
     ['PATCH'],
     ['DELETE']
   ])('rejects %s requests with 405', async (method) => {

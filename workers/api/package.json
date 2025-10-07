@@ -11,6 +11,7 @@
     "@ai-hairdresser/shared": "*",
     "@supabase/supabase-js": "^2.39.0",
     "dayjs": "^1.11.10",
+    "@sentry/cloudflare": "^10.17.0",
     "itty-router": "^4.0.23",
     "jose": "^4.15.5",
     "pg": "^8.11.3",

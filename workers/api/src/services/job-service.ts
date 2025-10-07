@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
+import { normalizeError, RequestLogger } from '@ai-hairdresser/shared';
+import { createSystemLogger } from '../lib/observability';
 
 type TenantRecord = {
   id: string;
@@ -64,16 +66,17 @@ async function listUpcomingBookings(
   return (data ?? []) as BookingRecord[];
 }
 
-async function sendBookingNotification(env: Env, notification: BookingNotification) {
-  console.log('Queue booking reminder', {
+async function sendBookingNotification(env: Env, notification: BookingNotification, logger: RequestLogger) {
+  logger.info('Queue booking reminder', {
     tenantId: notification.tenantId,
     bookingId: notification.bookingId,
     startTime: notification.scheduledTime,
     channels: notification.channels
   });
+  logger.metric('jobs.reminder.notification', 1, { dimension: notification.tenantId });
 }
 
-export async function sendReminderMessages(env: Env) {
+export async function sendReminderMessages(env: Env, parentLogger?: RequestLogger) {
   const client = getClient(env);
   const windowStart = new Date().toISOString();
   const windowEnd = dayjs(windowStart).add(24, 'hour').toISOString();
@@ -87,7 +90,9 @@ export async function sendReminderMessages(env: Env) {
     tenantsWithErrors: 0
   };
 
-  console.log('Starting reminder sweep', {
+  const logger = parentLogger?.child({ component: 'jobs.sendReminderMessages' }) ??
+    createSystemLogger({ component: 'jobs.sendReminderMessages' });
+  logger.info('Starting reminder sweep', {
     environment: env.WORKER_ENVIRONMENT ?? 'unknown',
     windowStart,
     windowEnd
@@ -120,28 +125,39 @@ export async function sendReminderMessages(env: Env) {
             scheduledTime: booking.start_time,
             channels,
             client: contact
-          });
+          }, logger);
           summary.remindersQueued += 1;
+          logger.metric('jobs.reminder.queued', 1, { dimension: tenant.id });
         } catch (error) {
           summary.reminderFailures += 1;
           const message = error instanceof Error ? error.message : String(error);
-          console.error('Reminder notification failure', {
+          logger.error('Reminder notification failure', {
             tenantId: tenant.id,
             bookingId: booking.id,
-            message
+            message,
+            error: normalizeError(error)
           });
+          logger.metric('jobs.reminder.failed', 1, { dimension: tenant.id });
         }
       }
     } catch (error) {
       summary.tenantsWithErrors += 1;
       const message = error instanceof Error ? error.message : String(error);
-      console.error('Reminder sweep tenant failure', { tenantId: tenant.id, message });
+      logger.error('Reminder sweep tenant failure', {
+        tenantId: tenant.id,
+        message,
+        error: normalizeError(error)
+      });
     }
   }
 
-  console.log('Reminder sweep summary', summary);
+  logger.info('Reminder sweep summary', summary);
 }
 
-export async function purgeExpiredData(env: Env) {
-  console.log('TODO: purge expired data per GDPR requirements');
+export async function purgeExpiredData(env: Env, parentLogger?: RequestLogger) {
+  const logger = parentLogger?.child({ component: 'jobs.purgeExpiredData' }) ??
+    createSystemLogger({ component: 'jobs.purgeExpiredData' });
+  logger.warn('TODO: purge expired data per GDPR requirements', {
+    environment: env.WORKER_ENVIRONMENT ?? 'unknown'
+  });
 }

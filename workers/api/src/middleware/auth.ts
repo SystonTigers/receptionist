@@ -1,3 +1,4 @@
+import { normalizeError } from '@ai-hairdresser/shared';
 import { decodeJwt } from 'jose';
 import { JsonResponse } from '../lib/response';
 
@@ -22,7 +23,7 @@ export async function withAuth(request: TenantScopedRequest, _env: Env, _ctx: Ex
     request.tenantId = (claims['tenantId'] as string) ?? request.tenantId;
     return request;
   } catch (error) {
-    console.warn('Auth decode failed', error);
+    request.logger?.warn('Auth decode failed', { error: normalizeError(error) });
     return JsonResponse.error('Unauthorized', 401);
   }
 }

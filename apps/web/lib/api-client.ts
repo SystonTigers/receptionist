@@ -11,6 +11,8 @@ export async function apiFetch<T>(path: string, options: RequestInit & { tenantI
     throw new Error('Missing tenant context');
   }
 
+  const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : undefined;
+
   const body =
     options.body && typeof options.body !== 'string'
       ? JSON.stringify(options.body)
@@ -23,7 +25,8 @@ export async function apiFetch<T>(path: string, options: RequestInit & { tenantI
       'Content-Type': 'application/json',
       ...(options.headers || {}),
       'x-tenant-id': tenantId,
-      Authorization: session ? `Bearer ${session.access_token}` : ''
+      Authorization: session ? `Bearer ${session.access_token}` : '',
+      ...(requestId ? { 'x-request-id': requestId } : {})
     }
   });
 

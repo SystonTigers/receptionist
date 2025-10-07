@@ -1,3 +1,4 @@
+import { normalizeError } from '@ai-hairdresser/shared';
 import { Router } from 'itty-router';
 import { JsonResponse } from '../lib/response';
 import { sendOutboundMessage, handleInboundMessage } from '../services/messaging-service';
@@ -11,10 +12,11 @@ router.post('/outbound', async (request: TenantScopedRequest, env: Env) => {
   }
 
   try {
-    const result = await sendOutboundMessage(env, request.tenantId!, payload);
+    const result = await sendOutboundMessage(env, request.tenantId!, payload, request.logger);
     return JsonResponse.ok(result, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to send message';
+    request.logger?.error('Failed to queue outbound message', { error: normalizeError(error) });
     return JsonResponse.error(message, 400);
   }
 });

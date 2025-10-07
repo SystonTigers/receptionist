@@ -5,19 +5,25 @@ import { listAppointments, createAppointment, getAvailability } from '../service
 const router = Router({ base: '/appointments' });
 
 router.get('/', async (request: TenantScopedRequest, env: Env) => {
-  const appointments = await listAppointments(env, request.tenantId!);
+  const appointments = await listAppointments(env, request.tenantId!, request.logger);
   return JsonResponse.ok({ appointments });
 });
 
 router.post('/', async (request: TenantScopedRequest, env: Env) => {
   const payload = await request.json();
-  const appointment = await createAppointment(env, request.tenantId!, request.userId!, payload);
+  const appointment = await createAppointment(
+    env,
+    request.tenantId!,
+    request.userId!,
+    payload,
+    request.logger
+  );
   return JsonResponse.ok({ appointment }, { status: 201 });
 });
 
 router.post('/availability', async (request: TenantScopedRequest, env: Env) => {
   const payload = await request.json();
-  const slots = await getAvailability(env, request.tenantId!, payload);
+  const slots = await getAvailability(env, request.tenantId!, payload, request.logger);
   return JsonResponse.ok({ slots });
 });
 

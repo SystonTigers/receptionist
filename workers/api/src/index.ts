@@ -14,6 +14,8 @@ import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
 import { bookingRouter } from './routes/bookings';
 import { assistRouter } from './routes/assist';
+import { observabilityRouter } from './routes/observability';
+import { withObservability } from './lib/observability';
 
 const router = Router();
 
@@ -41,6 +43,8 @@ router.all('/marketing', marketingRouter.handle);
 router.all('/marketing/*', marketingRouter.handle);
 router.all('/webhooks', webhooksRouter.handle);
 router.all('/webhooks/*', webhooksRouter.handle);
+router.all('/observability', observabilityRouter.handle);
+router.all('/observability/*', observabilityRouter.handle);
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) {
   let scoped = request as TenantScopedRequest;
@@ -60,7 +64,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
   return router.handle(scoped, env, ctx);
 }
 
-const handler = withErrorHandling(handleRequest);
+const handler = withObservability(withErrorHandling(handleRequest));
 
 export default {
   fetch: (request: Request, env: Env, ctx: ExecutionContext) => handler(request, env, ctx),
