@@ -3,6 +3,10 @@ export type UserId = string;
 export type AppointmentId = string;
 export type BookingId = string;
 
+export type FeatureCode = 'deposits_enabled' | 'ai_assistant_enabled' | 'team_accounts';
+export type PlanCode = 'free' | 'basic' | 'pro';
+export type TenantPlanStatus = 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired';
+
 export interface Tenant {
   id: TenantId;
   name: string;
@@ -218,4 +222,31 @@ export interface CalendarSyncToken {
   googleCalendarId: string;
   syncToken: string;
   updatedAt: string;
+}
+
+export interface PlanSummary {
+  code: PlanCode;
+  name: string;
+  description?: string | null;
+  monthlyPrice?: number | null;
+  currency?: string | null;
+  gracePeriodDays: number;
+  features: FeatureCode[];
+}
+
+export interface TenantPlanAccess {
+  plan: PlanSummary;
+  effectivePlan: PlanSummary;
+  status: TenantPlanStatus;
+  billingStatus?: string | null;
+  features: FeatureCode[];
+  isInGracePeriod: boolean;
+  currentPeriodEnd?: string | null;
+  gracePeriodEndsAt?: string | null;
+  downgradedTo?: PlanSummary | null;
+}
+
+export interface TenantPlanResponse {
+  tenantPlan: TenantPlanAccess;
+  availablePlans: PlanSummary[];
 }

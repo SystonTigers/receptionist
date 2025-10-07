@@ -14,6 +14,7 @@ import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
 import { bookingRouter } from './routes/bookings';
 import { assistRouter } from './routes/assist';
+import { withFeatureFlags } from './middleware/features';
 
 const router = Router();
 
@@ -56,6 +57,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
     return authResult;
   }
   scoped = authResult;
+
+  const featuresResult = await withFeatureFlags(scoped, env, ctx);
+  if (featuresResult instanceof Response) {
+    return featuresResult;
+  }
+  scoped = featuresResult;
 
   return router.handle(scoped, env, ctx);
 }
