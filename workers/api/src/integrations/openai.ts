@@ -1,3 +1,5 @@
+import { checkUsageQuota, recordUsageEvent } from '../services/usage-service';
+
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -13,7 +15,14 @@ type CallOpenAIOptions = {
 const DEFAULT_SYSTEM_PROMPT =
   'You are a helpful AI assistant supporting hair salon receptionists with friendly, professional responses.';
 
-export async function callOpenAI(env: Env, options: CallOpenAIOptions) {
+function estimatePromptTokens(options: CallOpenAIOptions) {
+  if (options.messages && options.messages.length > 0) {
+    return options.messages.reduce((sum, message) => sum + Math.ceil((message.content?.length ?? 0) / 4), 0);
+  }
+  return Math.ceil((options.prompt ?? '').length / 4);
+}
+
+export async function callOpenAI(env: Env, tenantId: string | null, options: CallOpenAIOptions) {
   if (!env.OPENAI_API_KEY) {
     console.warn('OPENAI_API_KEY missing');
     return 'AI response placeholder.';
@@ -28,6 +37,11 @@ export async function callOpenAI(env: Env, options: CallOpenAIOptions) {
 
   if (!messages.length || messages.every((msg) => !msg.content.trim())) {
     throw new Error('No content provided for OpenAI request');
+  }
+
+  const estimatedTokens = Math.max(estimatePromptTokens(options) + (options.maxTokens ?? 320), 1);
+  if (tenantId) {
+    await checkUsageQuota(env, tenantId, 'ai.request', estimatedTokens);
   }
 
   try {
@@ -56,9 +70,28 @@ export async function callOpenAI(env: Env, options: CallOpenAIOptions) {
 
     const payload = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
     const content = payload.choices?.[0]?.message?.content?.trim();
+    const totalTokens =
+      typeof payload.usage?.total_tokens === 'number' && Number.isFinite(payload.usage.total_tokens)
+        ? payload.usage.total_tokens
+        : estimatedTokens;
+
+    if (tenantId) {
+      await recordUsageEvent(env, tenantId, 'ai.request', {
+        quantity: totalTokens,
+        metadata: {
+          model: 'gpt-4o-mini',
+          tokens: totalTokens,
+          totalTokens,
+          promptTokens: payload.usage?.prompt_tokens ?? null,
+          completionTokens: payload.usage?.completion_tokens ?? null
+        }
+      });
+    }
+
     return content && content.length > 0
       ? content
       : 'Thanks for reaching out to the salon! How can we help you further?';

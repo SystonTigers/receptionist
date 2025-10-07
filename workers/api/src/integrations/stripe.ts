@@ -99,19 +99,41 @@ async function verifyStripeSignature(secret: string, signature: string, payload:
   }
 }
 
-async function stripeRequest(env: Env, path: string, params: URLSearchParams) {
+type StripeRequestOptions = {
+  method?: 'GET' | 'POST' | 'DELETE';
+  params?: URLSearchParams;
+};
+
+async function stripeRequest(env: Env, path: string, options: StripeRequestOptions = {}) {
   if (!env.STRIPE_SECRET_KEY) {
     console.warn('Missing STRIPE_SECRET_KEY; returning stubbed response');
     return null;
   }
 
-  const response = await fetch(`${STRIPE_API_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: params,
+  const method = options.method ?? 'POST';
+  const url = new URL(`${STRIPE_API_BASE}${path}`);
+  let body: BodyInit | undefined;
+
+  if (method === 'GET') {
+    if (options.params) {
+      url.search = options.params.toString();
+    }
+  } else if (options.params) {
+    body = options.params;
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`
+  };
+
+  if (method !== 'GET') {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+  }
+
+  const response = await fetch(url.toString(), {
+    method,
+    headers,
+    body,
     redirect: 'follow'
   });
 
@@ -141,7 +163,7 @@ export function createStripeClient(env: Env) {
         }
       }
 
-      const result = await stripeRequest(env, '/payment_intents', params);
+      const result = await stripeRequest(env, '/payment_intents', { params });
       if (!result) {
         return { id: `pi_test_${crypto.randomUUID()}`, client_secret: 'secret_placeholder' };
       }
@@ -173,7 +195,7 @@ export function createStripeClient(env: Env) {
         }
       }
 
-      const result = await stripeRequest(env, '/checkout/sessions', params);
+      const result = await stripeRequest(env, '/checkout/sessions', { params });
       if (!result) {
         return {
           id: `cs_test_${crypto.randomUUID()}`,
@@ -182,6 +204,88 @@ export function createStripeClient(env: Env) {
         };
       }
       return result as StripeCheckoutSession;
+    },
+
+    async createCustomer(options: {
+      email: string;
+      name?: string;
+      metadata?: Record<string, string | number | undefined | null>;
+    }) {
+      const params = new URLSearchParams();
+      params.append('email', options.email);
+      if (options.name) {
+        params.append('name', options.name);
+      }
+
+      const metadata = normaliseMetadata(options.metadata);
+      if (metadata) {
+        for (const [key, value] of Object.entries(metadata)) {
+          params.append(`metadata[${key}]`, value);
+        }
+      }
+
+      const result = await stripeRequest(env, '/customers', { params });
+      if (!result) {
+        return { id: `cus_test_${crypto.randomUUID()}` };
+      }
+      return result as { id: string };
+    },
+
+    async createSubscription(options: {
+      customerId: string;
+      priceId: string;
+      trialPeriodDays?: number;
+      metadata?: Record<string, string | number | undefined | null>;
+    }) {
+      const params = new URLSearchParams();
+      params.append('customer', options.customerId);
+      params.append('items[0][price]', options.priceId);
+      params.append('payment_behavior', 'allow_incomplete');
+
+      if (typeof options.trialPeriodDays === 'number') {
+        params.append('trial_period_days', String(options.trialPeriodDays));
+      }
+
+      const metadata = normaliseMetadata(options.metadata);
+      if (metadata) {
+        for (const [key, value] of Object.entries(metadata)) {
+          params.append(`metadata[${key}]`, value);
+        }
+      }
+
+      const result = await stripeRequest(env, '/subscriptions', { params });
+      if (!result) {
+        const now = Math.floor(Date.now() / 1000);
+        return {
+          id: `sub_test_${crypto.randomUUID()}`,
+          status: 'trialing',
+          current_period_start: now,
+          current_period_end: now + 30 * 24 * 60 * 60
+        };
+      }
+      return result as Record<string, unknown> & { id: string };
+    },
+
+    async listInvoices(options: { customerId: string; limit?: number }) {
+      const params = new URLSearchParams();
+      params.append('customer', options.customerId);
+      params.append('limit', String(options.limit ?? 12));
+      const result = await stripeRequest(env, '/invoices', { method: 'GET', params });
+      if (!result) {
+        return { data: [] };
+      }
+      return result as { data: Array<Record<string, unknown>> };
+    },
+
+    async createBillingPortalSession(options: { customerId: string; returnUrl: string }) {
+      const params = new URLSearchParams();
+      params.append('customer', options.customerId);
+      params.append('return_url', options.returnUrl);
+      const result = await stripeRequest(env, '/billing_portal/sessions', { params });
+      if (!result) {
+        return { url: options.returnUrl };
+      }
+      return result as { url: string };
     },
 
     async retrieveEvent(signature: string | null, payload: string): Promise<StripeEvent> {

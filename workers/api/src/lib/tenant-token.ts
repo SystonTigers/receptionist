@@ -1,8 +1,9 @@
 import { decodeJwt, JWTPayload } from 'jose';
+import type { Role } from '@ai-hairdresser/shared';
 
 interface TenantTokenPayload extends JWTPayload {
   tenantId: string;
-  role: string;
+  role: Role;
 }
 
 function toBase64Url(value: string) {

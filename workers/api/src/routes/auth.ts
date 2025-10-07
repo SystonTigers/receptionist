@@ -1,7 +1,7 @@
 import { Router } from 'itty-router';
 import { z } from 'zod';
 import { JsonResponse } from '../lib/response';
-import { createTenantWithAdmin, authenticateUser } from '../services/auth-service';
+import { createTenantWithAdmin, authenticateUser, acceptInvitation } from '../services/auth-service';
 
 const router = Router({ base: '/auth' });
 
@@ -36,6 +36,12 @@ router.post('/login', async (request: TenantScopedRequest, env: Env) => {
   }
   const result = await authenticateUser(parseResult.data, env);
   return JsonResponse.ok(result);
+});
+
+router.post('/accept-invite', async (request: TenantScopedRequest, env: Env) => {
+  const body = await request.json();
+  const result = await acceptInvitation(body, env);
+  return JsonResponse.ok(result, { status: 201 });
 });
 
 export const authRouter = router;

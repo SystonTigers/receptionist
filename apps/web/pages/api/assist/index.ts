@@ -15,6 +15,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       headers: {
         Authorization: req.headers.authorization ?? '',
         'x-tenant-id': tenantId,
+        'x-user-role': req.headers['x-user-role'] as string,
         'Content-Type': 'application/json',
         'x-platform-origin': 'next-web'
       },

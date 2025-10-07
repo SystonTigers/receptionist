@@ -8,6 +8,7 @@ import type {
   TenantSettings
 } from '@ai-hairdresser/shared';
 import { createStripeClient } from '../integrations/stripe';
+import { checkUsageQuota, recordUsageEvent } from './usage-service';
 
 interface BookingRow {
   id: string;
@@ -250,6 +251,7 @@ export async function createBooking(
   userId: string,
   input: BookingCreateInput
 ): Promise<CreateBookingResult> {
+  await checkUsageQuota(env, tenantId, 'booking.created', 1);
   const client = getClient(env);
   const [service, settings] = await Promise.all([
     fetchService(client, tenantId, input.serviceId),
@@ -378,6 +380,15 @@ export async function createBooking(
       }
     });
   }
+
+  await recordUsageEvent(env, tenantId, 'booking.created', {
+    metadata: {
+      bookingId: bookingRow.id,
+      serviceId: input.serviceId,
+      depositRequired,
+      status
+    }
+  });
 
   return { booking: mapBooking(bookingRow), checkoutUrl };
 }

@@ -64,7 +64,7 @@ export async function generateAssistantSuggestion(env: Env, tenantId: string, pa
     }
   ];
 
-  const suggestion = await callOpenAI(env, {
+  const suggestion = await callOpenAI(env, tenantId, {
     messages,
     temperature: 0.7,
     maxTokens: 260
