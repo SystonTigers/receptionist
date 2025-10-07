@@ -9,11 +9,17 @@ import { webhooksRouter } from './routes/webhooks';
 import { clientRouter } from './routes/clients';
 import { stylistRouter } from './routes/stylists';
 import { marketingRouter } from './routes/marketing';
+import { auditRouter } from './routes/audit';
 import { withErrorHandling } from './middleware/error-handler';
 import { withTenant } from './middleware/tenant';
 import { withAuth } from './middleware/auth';
 import { bookingRouter } from './routes/bookings';
 import { assistRouter } from './routes/assist';
+import { withBilling } from './middleware/billing';
+import { billingRouter } from './routes/billing';
+import { checkUsageQuota, recordUsageEvent } from './services/usage-service';
+import { withFeatureFlags } from './middleware/features';
+
 
 const router = Router();
 
@@ -39,6 +45,10 @@ router.all('/dashboard', dashboardRouter.handle);
 router.all('/dashboard/*', dashboardRouter.handle);
 router.all('/marketing', marketingRouter.handle);
 router.all('/marketing/*', marketingRouter.handle);
+router.all('/audit', auditRouter.handle);
+router.all('/audit/*', auditRouter.handle);
+router.all('/billing', billingRouter.handle);
+router.all('/billing/*', billingRouter.handle);
 router.all('/webhooks', webhooksRouter.handle);
 router.all('/webhooks/*', webhooksRouter.handle);
 
@@ -56,6 +66,32 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
     return authResult;
   }
   scoped = authResult;
+
+  const billingResult = await withBilling(scoped, env, ctx);
+  if (billingResult instanceof Response) {
+    return billingResult;
+  }
+  scoped = billingResult;
+  if (scoped.tenantId) {
+    await checkUsageQuota(env, scoped.tenantId, 'api.call', 1);
+    const url = new URL(request.url);
+    ctx.waitUntil(
+      recordUsageEvent(env, scoped.tenantId, 'api.call', {
+        metadata: {
+          path: url.pathname,
+          method: request.method
+        }
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Failed to record API usage event', { tenantId: scoped.tenantId, message });
+      })
+    );
+  }
+  const featuresResult = await withFeatureFlags(scoped, env, ctx);
+  if (featuresResult instanceof Response) {
+    return featuresResult;
+  }
+  scoped = featuresResult;
 
   return router.handle(scoped, env, ctx);
 }
