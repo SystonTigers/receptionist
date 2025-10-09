@@ -3,8 +3,30 @@
   "compilerOptions": {
     "baseUrl": "./src",
     "outDir": "dist",
-    "lib": ["es2020", "webworker"],
-    "types": ["@cloudflare/workers-types"]
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2022",
+      "WebWorker"
+    ],
+    "jsx": "react-jsx",
+    "isolatedModules": true,
+    "types": [
+      "@cloudflare/workers-types",
+      "vitest/globals"
+    ],
+    "paths": {
+      "@ai-hairdresser/shared": [
+        "../../../packages/shared/src"
+      ],
+      "@ai-hairdresser/shared/*": [
+        "../../../packages/shared/src/*"
+      ]
+    }
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ]
 }

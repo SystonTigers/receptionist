@@ -16,7 +16,8 @@
     "deploy:worker": "npm run deploy --workspace workers/api",
     "test": "vitest",
     "test:e2e": "playwright test",
-    "codex": "ts-node scripts/run-codex-task.ts"
+    "codex": "ts-node scripts/run-codex-task.ts",
+    "tscheck": "npm run typecheck -w workers/api"
   },
   "devDependencies": {
     "@types/inquirer": "^8.2.1",
