@@ -18,6 +18,7 @@
     "test:e2e": "playwright test",
     "codex": "ts-node scripts/run-codex-task.ts",
     "tscheck": "pnpm --filter ./workers/api tscheck"
+    "tscheck": "npm run typecheck -w workers/api"
   },
   "devDependencies": {
     "@types/inquirer": "^8.2.1",

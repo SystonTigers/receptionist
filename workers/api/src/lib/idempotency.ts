@@ -14,6 +14,11 @@ export async function withIdempotency<T>(
       options?: { expirationTtl?: number; nx?: boolean }
     ): Promise<boolean | void>;
   }).put(key, '1', { expirationTtl: ttlSeconds, nx: true });
+  const hold = (await (ns.put as unknown as (
+    key: string,
+    value: string,
+    options?: { expirationTtl?: number; nx?: boolean }
+  ) => Promise<boolean | void>)(key, '1', { expirationTtl: ttlSeconds, nx: true })) ?? undefined;
 
   if (hold === false) {
     return { ok: false, reason: 'duplicate' } as const;

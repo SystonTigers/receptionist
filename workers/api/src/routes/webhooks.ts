@@ -6,6 +6,10 @@ import { handleStripeEvent } from '../services/payment-service';
 import { handleInboundMessage, normalizeTwilio } from '../services/messaging-service';
 import { validateTwilio, TWILIO_SIGNATURE_HEADER } from '../lib/webhook-security';
 import { withIdempotency } from '../lib/idempotency';
+import { validateTwilioSignature, TWILIO_SIGNATURE_HEADER } from '../lib/webhook-security';
+import { withIdempotency } from '../lib/idempotency';
+import { handleInboundMessage, normalizeInboundMessagePayload } from '../services/messaging-service';
+import { verifyTwilioWebhookRequest, WebhookVerificationError } from '../lib/webhook-security';
 
 const router = Router({ base: '/webhooks' });
 
@@ -34,6 +38,16 @@ router.post('/stripe', async (request: Request, env: Env) => {
     }
 
     return JsonResponse.ok(outcome.value);
+    const cacheKey = `stripe:${eventId}`;
+    if (await env.IDEMP_KV.get(cacheKey)) {
+      return JsonResponse.ok({ received: true, duplicate: true });
+    }
+
+    await handleStripeEvent(env, event as Record<string, unknown>);
+    await env.IDEMP_KV.put(cacheKey, '1', { expirationTtl: IDEMP_TTL_SECONDS });
+
+    return JsonResponse.ok({ received: true });
+    
   } catch (error) {
     console.error('Stripe webhook error', error);
     return JsonResponse.error('Unable to process Stripe webhook', 400);
@@ -49,8 +63,10 @@ router.post('/twilio', async (request: Request, env: Env) => {
   const bodyText = await request.text();
   const signature = request.headers.get(TWILIO_SIGNATURE_HEADER);
   const valid = await validateTwilio(bodyText, request.url, signature, env.TWILIO_AUTH_TOKEN);
-
   const params = new URLSearchParams(bodyText);
+  const params = new URLSearchParams(bodyText);
+  const signature = request.headers.get(TWILIO_SIGNATURE_HEADER);
+  const valid = await validateTwilioSignature(env.TWILIO_AUTH_TOKEN, request.url, params, signature);
 
   if (!valid) {
     return new Response('Invalid signature', { status: 403 });
@@ -65,6 +81,30 @@ router.post('/twilio', async (request: Request, env: Env) => {
   }
 
   return JsonResponse.ok(outcome.value);
+  try {
+    const { payload } = await verifyTwilioWebhookRequest(request, env.TWILIO_AUTH_TOKEN);
+    const message = normalizeInboundMessagePayload(payload);
+
+    if (message.messageSid) {
+      const cacheKey = `twilio:${message.messageSid}`;
+      if (await env.IDEMP_KV.get(cacheKey)) {
+        return JsonResponse.ok({ received: true, duplicate: true });
+      }
+      const result = await handleInboundMessage(env, message);
+      await env.IDEMP_KV.put(cacheKey, '1', { expirationTtl: IDEMP_TTL_SECONDS });
+      return JsonResponse.ok(result);
+    }
+
+    const result = await handleInboundMessage(env, message);
+    return JsonResponse.ok(result);
+  } catch (error) {
+    if (error instanceof WebhookVerificationError) {
+      console.warn('Twilio webhook rejected', { reason: error.message });
+      return JsonResponse.error('Forbidden', error.status);
+    }
+    console.error('Twilio webhook error', error);
+    return JsonResponse.error('Unable to process Twilio webhook', 400);
+  }
 });
 
 export const webhooksRouter = router;
