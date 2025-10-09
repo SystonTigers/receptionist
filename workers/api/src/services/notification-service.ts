@@ -1,7 +1,9 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { createClient } from '@supabase/supabase-js';
+import { stripHtml, maskEmail, sendEmailViaSendGrid } from '../integrations/sendgrid';
+import { createTwilioClient } from '../integrations/twilio';
 
-type NotificationChannel = 'email' | 'sms';
+export type NotificationChannel = 'email' | 'sms';
 export type NotificationTemplate =
   | 'welcome_day_0'
   | 'welcome_day_1'
@@ -30,13 +32,7 @@ type QueueNotificationInput = {
   channel?: NotificationChannel;
   subject?: string;
   body: string;
-
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-import { stripHtml, maskEmail, sendEmailViaSendGrid } from '../integrations/sendgrid';
-import { createTwilioClient } from '../integrations/twilio';
-
-export type NotificationChannel = 'email' | 'sms';
+};
 
 type NotificationTemplateRecord = {
   id: string;
@@ -80,7 +76,6 @@ export type NotificationResult = {
   providerMessageId?: string;
   error?: string;
   templateId?: string | null;
-
 };
 
 function getClient(env: Env) {
@@ -127,7 +122,7 @@ export async function queueNotification(env: Env, tenantId: string, input: Queue
 }
 
 async function dispatchEmail(job: NotificationJobRow & { payload: Record<string, unknown> | null }) {
-  const body = typeof job.payload?.body === 'string' ? job.payload?.body : JSON.stringify(job.payload ?? {});
+  const body = typeof job.payload?.body === 'string' ? job.payload.body : JSON.stringify(job.payload ?? {});
   console.log('Dispatching onboarding email', {
     tenantId: job.tenant_id,
     template: job.template,
@@ -197,6 +192,8 @@ export async function processNotificationQueue(env: Env, limit = 25) {
       console.error('Notification dispatch failed', { id: job.id, tenantId: job.tenant_id, message });
     }
   }
+}
+
 async function fetchTenant(client: SupabaseClient, tenantId: string) {
   const { data, error } = await client
     .from('tenants')
@@ -215,12 +212,7 @@ async function fetchTenant(client: SupabaseClient, tenantId: string) {
   return data as TenantRow;
 }
 
-async function fetchTemplates(
-  client: SupabaseClient,
-  tenantId: string,
-  type: string,
-  channel: NotificationChannel
-) {
+async function fetchTemplates(client: SupabaseClient, tenantId: string, type: string, channel: NotificationChannel) {
   const { data, error } = await client
     .from('notification_templates')
     .select(
@@ -248,11 +240,7 @@ function determineLocalePriority(payloadLocale?: string, tenantLocale?: string, 
   return priorities;
 }
 
-function pickTemplate(
-  templates: NotificationTemplateRecord[],
-  tenantId: string,
-  localePriority: string[]
-) {
+function pickTemplate(templates: NotificationTemplateRecord[], tenantId: string, localePriority: string[]) {
   let selected: NotificationTemplateRecord | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
 
@@ -309,19 +297,10 @@ function renderTemplateString(template: string, variables: Record<string, unknow
   });
 }
 
-function renderTemplate(
-  template: NotificationTemplateRecord,
-  variables: Record<string, unknown>
-) {
-  const subject = template.subject_template
-    ? renderTemplateString(template.subject_template, variables)
-    : undefined;
-  const html = template.body_html_template
-    ? renderTemplateString(template.body_html_template, variables)
-    : undefined;
-  const text = template.body_text_template
-    ? renderTemplateString(template.body_text_template, variables)
-    : undefined;
+function renderTemplate(template: NotificationTemplateRecord, variables: Record<string, unknown>) {
+  const subject = template.subject_template ? renderTemplateString(template.subject_template, variables) : undefined;
+  const html = template.body_html_template ? renderTemplateString(template.body_html_template, variables) : undefined;
+  const text = template.body_text_template ? renderTemplateString(template.body_text_template, variables) : undefined;
 
   const resolvedHtml = html ?? (text ? text.replace(/\n/g, '<br />') : '');
   const resolvedText = text ?? stripHtml(resolvedHtml);
@@ -333,11 +312,7 @@ function renderTemplate(
   return { subject, html: resolvedHtml, text: resolvedText };
 }
 
-function localizeVariables(
-  variables: Record<string, unknown>,
-  locale: string,
-  timezone: string
-) {
+function localizeVariables(variables: Record<string, unknown>, locale: string, timezone: string) {
   const localized = { ...variables } as Record<string, unknown>;
   const formatter = new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
@@ -375,10 +350,7 @@ async function fetchEmailIdentity(client: SupabaseClient, tenantId: string) {
   return (data as NotificationIdentityRecord | null) ?? null;
 }
 
-function parseEmailIdentity(
-  identity: NotificationIdentityRecord | null,
-  env: Env
-) {
+function parseEmailIdentity(identity: NotificationIdentityRecord | null, env: Env) {
   const config = identity?.config ?? {};
   const fromEmail = typeof config.fromEmail === 'string' ? config.fromEmail : env.NOTIFICATION_DEFAULT_FROM_EMAIL;
   const fromName = typeof config.fromName === 'string' ? config.fromName : env.NOTIFICATION_DEFAULT_FROM_NAME;
@@ -489,12 +461,7 @@ async function sendSms(env: Env, to: string, body: string) {
   return { success: false, error: lastError };
 }
 
-export async function sendNotification(
-  env: Env,
-  tenantId: string,
-  type: string,
-  payload: NotificationPayload
-) {
+export async function sendNotification(env: Env, tenantId: string, type: string, payload: NotificationPayload) {
   const client = getClient(env);
   const tenant = await fetchTenant(client, tenantId);
   const tenantSettings = (tenant.settings ?? {}) as Record<string, unknown>;
@@ -523,20 +490,7 @@ export async function sendNotification(
       localeForTemplate = resolveLocale(template, payload.locale, tenantLocale, fallbackLocale);
       timezoneForTemplate = resolveTimezone(template, payload.timezone, tenantTimezone, fallbackTimezone);
 
-      const variables = {
-        ...(payload.data ?? {}),
-        tenant: {
-          id: tenant.id,
-          name: tenant.name
-        },
-        recipient: {
-          name: payload.to?.name ?? undefined,
-          email: payload.to?.email ?? undefined,
-          phone: payload.to?.phone ?? undefined
-        }
-      };
-
-      const localizedVariables = localizeVariables(variables, localeForTemplate, timezoneForTemplate);
+      const localizedVariables = localizeVariables(payload.data ?? {}, localeForTemplate, timezoneForTemplate);
       const rendered = renderTemplate(template, localizedVariables);
 
       if (channel === 'email') {
@@ -545,15 +499,9 @@ export async function sendNotification(
           throw new Error('Email recipient is missing');
         }
 
-        const identityRecord = await fetchEmailIdentity(client, tenantId);
-        const identity = parseEmailIdentity(identityRecord, env);
-
-        if (!identity.apiKey) {
-          throw new Error('SendGrid API key is not configured');
-        }
-
-        if (!identity.fromEmail) {
-          throw new Error('Sender email address is not configured');
+        const identity = parseEmailIdentity(await fetchEmailIdentity(client, tenantId), env);
+        if (!identity.apiKey || !identity.fromEmail) {
+          throw new Error('Email identity is not fully configured');
         }
 
         const dispatchResult = await sendEmailViaSendGrid(identity.apiKey, {
@@ -568,11 +516,7 @@ export async function sendNotification(
           subject: rendered.subject ?? type.replace(/_/g, ' '),
           html: rendered.html,
           text: rendered.text,
-          replyTo: identity.replyTo
-            ? {
-                email: identity.replyTo
-              }
-            : undefined
+          replyTo: identity.replyTo ? { email: identity.replyTo } : undefined
         });
 
         const success = dispatchResult.success;
