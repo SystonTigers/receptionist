@@ -1,6 +1,5 @@
 import { normalizeError, type RequestLogger } from '@ai-hairdresser/shared';
 import { RequestLogger, normalizeError } from '@ai-hairdresser/shared';
-
 import { createTwilioClient } from '../integrations/twilio';
 import { callOpenAI } from '../integrations/openai';
 import { createSystemLogger } from '../lib/observability';
@@ -190,6 +189,7 @@ export async function sendOutboundMessage(
   payload: OutboundPayload,
   parentLogger?: RequestLogger
 ) {
+
   if (!payload?.to || !payload?.body) {
     throw new Error('Missing recipient or message body');
   }
@@ -210,6 +210,40 @@ export async function sendOutboundMessage(
       channel === 'whatsapp'
         ? await client.sendWhatsapp(payload.to, payload.body)
         : await client.sendSms(payload.to, payload.body);
+
+    await recordUsageEvent(env, tenantId, 'message.sent', {
+      metadata: {
+        channel,
+        hasRecipient: Boolean(payload.to)
+      }
+    });
+
+    return { status: 'queued', sid: result.sid, channel };
+  } catch (error) {
+    logger.error('Failed to send outbound message', { error: normalizeError(error) });
+    throw error;
+  }
+}
+
+function isInboundMessage(value: unknown): value is InboundMessage {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      (value as Record<string, unknown>).provider === 'twilio' &&
+      typeof (value as Record<string, unknown>).messageId === 'string'
+  );
+}
+
+export async function handleInboundMessage(env: Env, payload: unknown, parentLogger?: RequestLogger) {
+  const message = isInboundMessage(payload) ? (payload as InboundMessage) : normalizeInboundMessagePayload(payload);
+
+  const logger =
+    parentLogger?.child({ component: 'messaging.inbound' }) ??
+    createSystemLogger({ component: 'messaging.inbound' });
+
+  logger.info('Inbound message received', { ...safeLog(message), channel: message.channel });
+
+  const trimmedBody = message.text.trim();
 
     await recordUsageEvent(env, tenantId, 'message.sent', {
       metadata: {
@@ -271,6 +305,10 @@ export async function handleInboundMessage(env: Env, payload: unknown, parentLog
   const aiResponse = await callOpenAI(env, message.tenantId ?? null, { prompt });
 
   logger.debug('Generated AI response for inbound message', {
+
+    channel: message.channel,
+    messageId: message.messageId ? `***${message.messageId.slice(-6)}` : undefined
+
     messageId: message.messageId ? `***${message.messageId.slice(-6)}` : undefined
     messageSid: message.messageSid ? `***${message.messageSid.slice(-6)}` : undefined
   });

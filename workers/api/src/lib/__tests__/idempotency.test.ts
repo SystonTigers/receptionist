@@ -1,3 +1,11 @@
+import { describe, expect, it } from 'vitest';
+
+import { withIdempotency } from '../idempotency';
+import { fakeEnv } from './test-helpers';
+
+describe('withIdempotency', () => {
+  it('blocks duplicate keys', async () => {
+    const env = fakeEnv();
 import type { KVNamespace } from '@cloudflare/workers-types';
 import { describe, expect, it } from 'vitest';
 

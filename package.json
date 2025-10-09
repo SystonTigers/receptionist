@@ -14,9 +14,10 @@
     "lint:web": "npm run lint --workspace apps/web",
     "dev:worker": "npm run dev --workspace workers/api",
     "deploy:worker": "npm run deploy --workspace workers/api",
-    "test": "vitest",
+    "test": "pnpm --filter ./workers/api test",
     "test:e2e": "playwright test",
     "codex": "ts-node scripts/run-codex-task.ts",
+    "tscheck": "pnpm --filter ./workers/api tscheck"
     "tscheck": "npm run typecheck -w workers/api"
   },
   "devDependencies": {

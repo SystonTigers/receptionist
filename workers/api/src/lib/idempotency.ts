@@ -1,3 +1,5 @@
+import type { KVNamespace } from '@cloudflare/workers-types';
+
 export async function withIdempotency<T>(
   env: Env,
   key: string,
@@ -5,6 +7,13 @@ export async function withIdempotency<T>(
   work: () => Promise<T>
 ): Promise<{ ok: true; value: T } | { ok: false; reason: 'duplicate' }> {
   const ns = env.IDEMP_KV;
+  const hold = await (ns as KVNamespace & {
+    put(
+      key: string,
+      value: string,
+      options?: { expirationTtl?: number; nx?: boolean }
+    ): Promise<boolean | void>;
+  }).put(key, '1', { expirationTtl: ttlSeconds, nx: true });
   const hold = (await (ns.put as unknown as (
     key: string,
     value: string,

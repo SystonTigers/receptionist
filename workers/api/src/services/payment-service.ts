@@ -56,8 +56,10 @@ async function mutateBookingDeposit(
   const metadata = ((data as { metadata?: Record<string, unknown> }).metadata ?? {}) as Record<string, unknown>;
   const existingDeposit =
     metadata && typeof metadata.deposit === 'object' && metadata.deposit !== null
-      ? { ...(metadata.deposit as Record<string, unknown>) }
-      : {};
+      ? ({ ...(metadata.deposit as Record<string, unknown>) } as Record<string, unknown> & {
+          createdAt?: string;
+        })
+      : ({} as Record<string, unknown> & { createdAt?: string });
 
   const timestamp = new Date().toISOString();
   const result = mutate({
@@ -70,7 +72,7 @@ async function mutateBookingDeposit(
     ...existingDeposit,
     ...(result.deposit ?? {}),
     updatedAt: timestamp
-  };
+  } as Record<string, unknown> & { createdAt?: string };
 
   if (!updatedDeposit.createdAt && typeof existingDeposit.createdAt === 'string') {
     updatedDeposit.createdAt = existingDeposit.createdAt;

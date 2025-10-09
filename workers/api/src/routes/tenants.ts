@@ -12,7 +12,6 @@ import {
 import { requireRole } from '../lib/authorization';
 import type { Role } from '@ai-hairdresser/shared';
 
-import { getTenantById, listTenantUsers } from '../services/tenant-service';
 import { assignTenantPlan } from '../services/plan-service';
 import { getPlanOverview } from '../middleware/features';
 
@@ -41,9 +40,14 @@ router.post('/me/invitations', async (request: TenantScopedRequest, env: Env) =>
     return forbidden;
   }
 
-  const payload = await request.json();
-  const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
-  const role = typeof payload.role === 'string' ? (payload.role as Role) : undefined;
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload !== 'object') {
+    return JsonResponse.error('Invalid JSON body', 400);
+  }
+
+  const body = payload as Record<string, unknown>;
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const role = typeof body.role === 'string' ? (body.role as Role) : undefined;
 
   if (!email || !role) {
     return JsonResponse.error('Email and role are required', 400);
@@ -79,8 +83,13 @@ router.patch('/me/users/:id', async (request: TenantScopedRequest & { params?: R
     return JsonResponse.error('Missing user id', 400);
   }
 
-  const payload = await request.json();
-  const role = typeof payload.role === 'string' ? (payload.role as Role) : undefined;
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload !== 'object') {
+    return JsonResponse.error('Invalid JSON body', 400);
+  }
+
+  const body = payload as Record<string, unknown>;
+  const role = typeof body.role === 'string' ? (body.role as Role) : undefined;
   if (!role) {
     return JsonResponse.error('Role is required', 400);
   }

@@ -25,7 +25,7 @@ type BookingRecord = {
   tenant_id: string;
   start_time: string;
   status: string;
-  client: ClientContact | null;
+  client: ClientContact[] | ClientContact | null;
 };
 
 type BookingNotification = {
@@ -145,8 +145,8 @@ export async function sendReminderMessages(env: Env, parentLogger?: RequestLogge
       summary.bookingsReviewed += bookings.length;
 
       for (const booking of bookings) {
+        const contact = Array.isArray(booking.client) ? booking.client[0] ?? null : booking.client ?? null;
         const channels: Array<'sms' | 'email'> = [];
-        const contact = booking.client;
         if (contact?.phone) channels.push('sms');
         if (contact?.email) channels.push('email');
 

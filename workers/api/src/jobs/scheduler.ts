@@ -9,6 +9,7 @@ import { aggregateUsageMetrics } from '../services/usage-service';
 
 export async function handleScheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
   const cron = event.cron ?? 'manual';
+  const logger = createSystemLogger({ component: 'scheduler' });
   const logger = createSystemLogger({ component: 'scheduler', cron });
   logger.info('Running scheduled job', { cron });
 

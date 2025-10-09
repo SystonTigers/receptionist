@@ -4,6 +4,8 @@ import { JsonResponse } from '../lib/response';
 import { createStripeClient } from '../integrations/stripe';
 import { handleStripeEvent } from '../services/payment-service';
 import { handleInboundMessage, normalizeTwilio } from '../services/messaging-service';
+import { validateTwilio, TWILIO_SIGNATURE_HEADER } from '../lib/webhook-security';
+import { withIdempotency } from '../lib/idempotency';
 import { validateTwilioSignature, TWILIO_SIGNATURE_HEADER } from '../lib/webhook-security';
 import { withIdempotency } from '../lib/idempotency';
 import { handleInboundMessage, normalizeInboundMessagePayload } from '../services/messaging-service';
@@ -45,6 +47,7 @@ router.post('/stripe', async (request: Request, env: Env) => {
     await env.IDEMP_KV.put(cacheKey, '1', { expirationTtl: IDEMP_TTL_SECONDS });
 
     return JsonResponse.ok({ received: true });
+    
   } catch (error) {
     console.error('Stripe webhook error', error);
     return JsonResponse.error('Unable to process Stripe webhook', 400);
@@ -58,6 +61,9 @@ router.post('/twilio', async (request: Request, env: Env) => {
   }
 
   const bodyText = await request.text();
+  const signature = request.headers.get(TWILIO_SIGNATURE_HEADER);
+  const valid = await validateTwilio(bodyText, request.url, signature, env.TWILIO_AUTH_TOKEN);
+  const params = new URLSearchParams(bodyText);
   const params = new URLSearchParams(bodyText);
   const signature = request.headers.get(TWILIO_SIGNATURE_HEADER);
   const valid = await validateTwilioSignature(env.TWILIO_AUTH_TOKEN, request.url, params, signature);

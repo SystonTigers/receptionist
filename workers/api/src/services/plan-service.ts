@@ -110,7 +110,14 @@ export async function getTenantPlanAccess(env: Env, tenantId: string): Promise<T
     };
   }
 
-  const plan = mapPlanRow({ ...data.plan, plan_features: data.plan.plan_features });
+  const rawPlan = Array.isArray(data.plan) ? (data.plan[0] ?? {}) : (data.plan ?? {});
+  const planFeatures = Array.isArray((rawPlan as { plan_features?: unknown }).plan_features)
+    ? ((rawPlan as { plan_features: unknown }).plan_features as unknown[])
+    : [];
+  const plan = mapPlanRow({
+    ...(rawPlan as Record<string, unknown>),
+    plan_features: planFeatures
+  });
   const status = (data.status ?? 'active') as TenantPlanStatus;
   const currentPeriodEnd = data.current_period_end ?? null;
   const gracePeriodEndsAt = data.grace_period_ends_at ?? null;

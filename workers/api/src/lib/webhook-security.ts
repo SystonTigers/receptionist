@@ -7,6 +7,7 @@ function timingSafeEqual(a: string, b: string) {
   let result = 0;
   for (let i = 0; i < a.length; i++) {
     result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    
 const TWILIO_SIGNATURE_HEADER = 'x-twilio-signature';
 
 export class WebhookVerificationError extends Error {
@@ -70,6 +71,16 @@ function bufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
+async function computeTwilioSignature(secret: string, payload: string) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+
 async function computeTwilioSignature(authToken: string, payload: string) {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', encoder.encode(authToken), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
@@ -77,6 +88,15 @@ async function computeTwilioSignature(authToken: string, payload: string) {
   return toBase64(signature);
 }
 
+function buildSignatureBase(url: string, formBody: string) {
+  const params = new URLSearchParams(formBody);
+  if ([...params.keys()].length === 0) {
+    return url;
+  }
+  const sorted = [...params.entries()].sort(([a], [b]) => a.localeCompare(b));
+  let buffer = url;
+  for (const [key, value] of sorted) {
+    buffer += key + value;
 function buildSignatureBase(url: string, params: URLSearchParams) {
   if ([...params.keys()].length === 0) {
     return url;
@@ -92,6 +112,11 @@ function buildSignatureBase(url: string, params: URLSearchParams) {
   return buffer;
 }
 
+export async function validateTwilio(
+  formBody: string,
+  requestUrl: string,
+  signature: string | null,
+  authToken: string | undefined
 export async function validateTwilioSignature(
   authToken: string | undefined,
   requestUrl: string,
@@ -101,6 +126,10 @@ export async function validateTwilioSignature(
   if (!authToken || !signature) {
     return false;
   }
+  
+  const payload = buildSignatureBase(new URL(requestUrl).toString(), formBody);
+  const expected = await computeTwilioSignature(authToken, payload);
+  return timingSafeEqual(signature, expected);
   const payload = buildSignatureBase(requestUrl, params);
   const expected = await computeTwilioSignature(authToken, payload);
   return timingSafeEqual(signature, expected);
