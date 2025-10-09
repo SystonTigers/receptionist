@@ -14,6 +14,11 @@ TWILIO_ACCOUNT_SID = "${TWILIO_ACCOUNT_SID}"
 TWILIO_AUTH_TOKEN = "${TWILIO_AUTH_TOKEN}"
 OPENAI_API_KEY = "${OPENAI_API_KEY}"
 
+[[kv_namespaces]]
+binding = "IDEMP_KV"
+id = "${IDEMP_KV_ID}"
+preview_id = "${IDEMP_KV_PREVIEW_ID}"
+
 [env.production]
 route = "api.yourdomain.com/*"
 account_id = "${CLOUDFLARE_ACCOUNT_ID}"

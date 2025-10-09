@@ -1,7 +1,6 @@
 import { Router } from 'itty-router';
 import { JsonResponse } from '../lib/response';
 import { getDashboardSummary, getUsageMetrics, getOnboardingAnalytics } from '../services/dashboard-service';
-import { getDashboardSummary } from '../services/dashboard-service';
 import { getUsageOverview } from '../services/usage-service';
 
 const router = Router({ base: '/dashboard' });

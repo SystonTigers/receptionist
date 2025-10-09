@@ -16,6 +16,16 @@ type LoggerFactory = (overrides?: Partial<LoggerContext>) => RequestLogger;
 let sentryInitialized = false;
 let sentryActive = false;
 
+function getSentryInit() {
+  return (Sentry as unknown as { init?: (options: Record<string, unknown>) => void }).init;
+}
+
+function getSentryAsyncRunner() {
+  return (Sentry as unknown as {
+    runWithAsyncContext?: <T>(callback: () => Promise<T>) => Promise<T>;
+  }).runWithAsyncContext;
+}
+
 function sampleRateFromEnv(env: Env) {
   const raw = env.SENTRY_TRACES_SAMPLE_RATE ?? env.SENTRY_SAMPLE_RATE ?? '0.1';
   const parsed = Number.parseFloat(raw);
@@ -34,14 +44,17 @@ export function ensureSentry(env: Env) {
     return;
   }
 
-  Sentry.init({
-    dsn: env.SENTRY_DSN,
-    environment: env.SENTRY_ENVIRONMENT ?? env.WORKER_ENVIRONMENT ?? 'development',
-    tracesSampleRate: sampleRateFromEnv(env),
-    release: env.SENTRY_RELEASE,
-    autoSessionTracking: false
-  });
-  sentryActive = true;
+  const init = getSentryInit();
+  if (typeof init === 'function') {
+    init({
+      dsn: env.SENTRY_DSN,
+      environment: env.SENTRY_ENVIRONMENT ?? env.WORKER_ENVIRONMENT ?? 'development',
+      tracesSampleRate: sampleRateFromEnv(env),
+      release: env.SENTRY_RELEASE,
+      autoSessionTracking: false
+    });
+    sentryActive = true;
+  }
 }
 
 function sentryEnabled() {
@@ -191,7 +204,11 @@ export function withObservability<T extends (...args: any[]) => Promise<any>>(ha
 
     const start = Date.now();
 
-    return Sentry.runWithAsyncContext(async () => {
+    const runner = getSentryAsyncRunner();
+    const execute: <T>(cb: () => Promise<T>) => Promise<T> =
+      typeof runner === 'function' ? runner : async <T>(cb: () => Promise<T>) => cb();
+
+    return execute(async () => {
       withSentryScope(scoped);
       let status = 200;
       try {

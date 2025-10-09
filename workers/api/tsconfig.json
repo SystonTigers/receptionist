@@ -1,10 +1,20 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": "./src",
-    "outDir": "dist",
-    "lib": ["es2020", "webworker"],
-    "types": ["@cloudflare/workers-types"]
+    "target": "ES2022",
+    "lib": ["ES2022", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "isolatedModules": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "types": ["@cloudflare/workers-types", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@ai-hairdresser/shared": ["../../packages/shared/src"],
+      "@ai-hairdresser/shared/*": ["../../packages/shared/src/*"]
+    },
+    "noEmit": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src", "vitest.config.ts"]
 }

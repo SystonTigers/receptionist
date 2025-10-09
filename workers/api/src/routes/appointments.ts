@@ -10,20 +10,28 @@ router.get('/', async (request: TenantScopedRequest, env: Env) => {
 });
 
 router.post('/', async (request: TenantScopedRequest, env: Env) => {
-  const payload = await request.json();
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload !== 'object') {
+    return JsonResponse.error('Invalid JSON body', 400);
+  }
+
   const appointment = await createAppointment(
     env,
     request.tenantId!,
     request.userId!,
-    payload,
+    payload as Record<string, unknown>,
     request.logger
   );
   return JsonResponse.ok({ appointment }, { status: 201 });
 });
 
 router.post('/availability', async (request: TenantScopedRequest, env: Env) => {
-  const payload = await request.json();
-  const slots = await getAvailability(env, request.tenantId!, payload, request.logger);
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload !== 'object') {
+    return JsonResponse.error('Invalid JSON body', 400);
+  }
+
+  const slots = await getAvailability(env, request.tenantId!, payload as Record<string, unknown>, request.logger);
   return JsonResponse.ok({ slots });
 });
 

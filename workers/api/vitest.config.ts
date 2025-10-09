@@ -1,14 +1,13 @@
 import { defineConfig } from 'vitest/config';
-import path from 'node:path';
 
 export default defineConfig({
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts']
+    include: ['src/**/*.test.ts', 'src/**/__tests__/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**']
   },
   resolve: {
     alias: {
-      '@ai-hairdresser/shared': path.resolve(__dirname, '../..', 'packages/shared/src')
+      '@ai-hairdresser/shared': new URL('../../packages/shared/src/', import.meta.url).pathname
     }
   }
 });

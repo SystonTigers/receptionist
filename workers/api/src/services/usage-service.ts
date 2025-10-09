@@ -216,7 +216,7 @@ export async function aggregateUsageMetrics(env: Env) {
       const existing = monthlyTotals.get(aggregateRow.event_type) ?? 0;
       monthlyTotals.set(aggregateRow.event_type, existing + value);
 
-      if (aggregateRow.occurred_at && dayjs(aggregateRow.occurred_at).isSameOrAfter(dayStart)) {
+      if (aggregateRow.occurred_at && !dayjs(aggregateRow.occurred_at).isBefore(dayStart)) {
         const dayExisting = dailyTotals.get(aggregateRow.event_type) ?? 0;
         dailyTotals.set(aggregateRow.event_type, dayExisting + value);
       }

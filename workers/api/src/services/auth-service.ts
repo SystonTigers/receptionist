@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Role } from '@ai-hairdresser/shared';
+
 import { JsonResponse } from '../lib/response';
 import {
   insertTenant,
@@ -11,11 +12,9 @@ import {
 } from '../lib/supabase-admin';
 import { hashPassword, verifyPassword } from '../lib/passwords';
 import { buildTenantToken } from '../lib/tenant-token';
-
 import { initializeTenantOnboarding } from './onboarding-service';
-
 import { recordAuditLog } from './audit-log-service';
-import { createTenantSubscription } from './subscription-service'
+import { createTenantSubscription } from './subscription-service';
 
 const signupInput = z.object({
   tenantName: z.string(),
@@ -52,9 +51,11 @@ export async function createTenantWithAdmin(input: unknown, env: Env) {
     id: tenantId,
     name: tenant.name,
     contactEmail: tenant.contact_email
+  });
+
   await createTenantSubscription(env, {
     tenantId,
-    tenantName: payload.tenantName,
+    tenantName: tenant.name,
     email: payload.email
   });
 
@@ -69,6 +70,17 @@ const loginInput = z.object({
   email: z.string().email(),
   password: z.string()
 });
+
+async function hashIdentifier(value: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value.trim().toLowerCase());
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const bytes = Array.from(new Uint8Array(digest));
+  return bytes
+    .slice(0, 8)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 export async function authenticateUser(input: unknown, env: Env) {
   const payload = loginInput.parse(input);
@@ -112,17 +124,6 @@ export async function authenticateUser(input: unknown, env: Env) {
     }
   };
 }
-
-
-async function hashIdentifier(value: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(value.trim().toLowerCase());
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  const bytes = Array.from(new Uint8Array(digest));
-  return bytes
-    .slice(0, 8)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
 
 const invitationAcceptanceInput = z.object({
   token: z.string().min(10),
@@ -173,5 +174,4 @@ export async function acceptInvitation(input: unknown, env: Env) {
       role: invitation.role
     }
   };
-
 }

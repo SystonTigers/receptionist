@@ -1,12 +1,11 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import dayjs from 'dayjs';
 
-import { normalizeError, RequestLogger } from '@ai-hairdresser/shared';
-import { createSystemLogger } from '../lib/observability';
+import { normalizeError, type RequestLogger } from '@ai-hairdresser/shared';
 
+import { createSystemLogger } from '../lib/observability';
 import { detectSuspiciousPatterns, listAuditLogsSince } from './audit-log-service';
 import { recordUsageEvent } from './usage-service';
-
 import { sendNotification, type NotificationPayload } from './notification-service';
 
 type TenantRecord = {
@@ -26,7 +25,7 @@ type BookingRecord = {
   tenant_id: string;
   start_time: string;
   status: string;
-  client: ClientContact | null;
+  client: ClientContact[] | ClientContact | null;
 };
 
 type BookingNotification = {
@@ -49,12 +48,7 @@ async function listTenants(client: SupabaseClient) {
   return (data ?? []) as TenantRecord[];
 }
 
-async function listUpcomingBookings(
-  client: SupabaseClient,
-  tenantId: string,
-  windowStart: string,
-  windowEnd: string
-) {
+async function listUpcomingBookings(client: SupabaseClient, tenantId: string, windowStart: string, windowEnd: string) {
   const { data, error } = await client
     .from('appointments')
     .select(
@@ -72,18 +66,14 @@ async function listUpcomingBookings(
   return (data ?? []) as BookingRecord[];
 }
 
-
 async function sendBookingNotification(env: Env, notification: BookingNotification, logger: RequestLogger) {
-  logger.info('Queue booking reminder', {
-
-async function sendBookingNotification(env: Env, notification: BookingNotification) {
   const payload: NotificationPayload = {
     channels: notification.channels,
     to: {
       email: notification.client?.email ?? undefined,
       phone: notification.client?.phone ?? undefined,
       name: [notification.client?.first_name, notification.client?.last_name]
-        .filter((value) => Boolean(value && value.trim()))
+        .filter((value) => Boolean(value && value.trim && value.trim()))
         .join(' ')
         .trim() || undefined
     },
@@ -98,7 +88,7 @@ async function sendBookingNotification(env: Env, notification: BookingNotificati
   const results = await sendNotification(env, notification.tenantId, 'booking_reminder', payload);
   const successful = results.filter((result) => result.success);
 
-  console.log('Reminder notification dispatch results', 
+  logger.info('Reminder notification dispatched', {
     tenantId: notification.tenantId,
     bookingId: notification.bookingId,
     channels: notification.channels,
@@ -106,19 +96,20 @@ async function sendBookingNotification(env: Env, notification: BookingNotificati
     failed: results.filter((result) => !result.success).map((result) => result.channel)
   });
 
-  if (successful.length === 0) {
-    const errors = results.map((result) => result.error).filter(Boolean);
-    throw new Error(errors.join('; ') || 'All notification channels failed');
-  }
-
-  return results;
   await recordUsageEvent(env, notification.tenantId, 'reminder.queued', {
     metadata: {
       bookingId: notification.bookingId,
       channels: notification.channels
     }
   });
+
+  if (successful.length === 0) {
+    const errors = results.map((result) => result.error).filter(Boolean);
+    throw new Error(errors.join('; ') || 'All notification channels failed');
+  }
+
   logger.metric('jobs.reminder.notification', 1, { dimension: notification.tenantId });
+  return results;
 }
 
 export async function sendReminderMessages(env: Env, parentLogger?: RequestLogger) {
@@ -135,7 +126,8 @@ export async function sendReminderMessages(env: Env, parentLogger?: RequestLogge
     tenantsWithErrors: 0
   };
 
-  const logger = parentLogger?.child({ component: 'jobs.sendReminderMessages' }) ??
+  const logger =
+    parentLogger?.child({ component: 'jobs.sendReminderMessages' }) ??
     createSystemLogger({ component: 'jobs.sendReminderMessages' });
   logger.info('Starting reminder sweep', {
     environment: env.WORKER_ENVIRONMENT ?? 'unknown',
@@ -153,8 +145,8 @@ export async function sendReminderMessages(env: Env, parentLogger?: RequestLogge
       summary.bookingsReviewed += bookings.length;
 
       for (const booking of bookings) {
+        const contact = Array.isArray(booking.client) ? booking.client[0] ?? null : booking.client ?? null;
         const channels: Array<'sms' | 'email'> = [];
-        const contact = booking.client;
         if (contact?.phone) channels.push('sms');
         if (contact?.email) channels.push('email');
 
@@ -164,13 +156,17 @@ export async function sendReminderMessages(env: Env, parentLogger?: RequestLogge
         }
 
         try {
-          await sendBookingNotification(env, {
-            tenantId: tenant.id,
-            bookingId: booking.id,
-            scheduledTime: booking.start_time,
-            channels,
-            client: contact
-          }, logger);
+          await sendBookingNotification(
+            env,
+            {
+              tenantId: tenant.id,
+              bookingId: booking.id,
+              scheduledTime: booking.start_time,
+              channels,
+              client: contact
+            },
+            logger
+          );
           summary.remindersQueued += 1;
           logger.metric('jobs.reminder.queued', 1, { dimension: tenant.id });
         } catch (error) {
@@ -200,11 +196,14 @@ export async function sendReminderMessages(env: Env, parentLogger?: RequestLogge
 }
 
 export async function purgeExpiredData(env: Env, parentLogger?: RequestLogger) {
-  const logger = parentLogger?.child({ component: 'jobs.purgeExpiredData' }) ??
+  const logger =
+    parentLogger?.child({ component: 'jobs.purgeExpiredData' }) ??
     createSystemLogger({ component: 'jobs.purgeExpiredData' });
   logger.warn('TODO: purge expired data per GDPR requirements', {
     environment: env.WORKER_ENVIRONMENT ?? 'unknown'
   });
+}
+
 export async function monitorSecurityEvents(env: Env) {
   const windowEnd = new Date().toISOString();
   const windowStart = dayjs(windowEnd).subtract(1, 'hour').toISOString();
@@ -227,8 +226,4 @@ export async function monitorSecurityEvents(env: Env) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Security monitoring failed', { windowStart, windowEnd, message });
   }
-}
-
-export async function purgeExpiredData(env: Env) {
-  console.log('TODO: purge expired data per GDPR requirements');
 }

@@ -335,20 +335,18 @@ export async function createBooking(
 
     const timestamp = new Date().toISOString();
     const metadata = (bookingRow.metadata ?? {}) as Record<string, unknown>;
-    const depositDetails = {
-      ...(typeof metadata.deposit === 'object' ? (metadata.deposit as Record<string, unknown>) : {}),
+    const previousDeposit = parseDepositMetadata(metadata);
+    const depositDetails: BookingDeposit = {
       required: true,
       status: 'pending',
       amount: depositAmount,
       currency,
       checkoutSessionId: session.id,
       checkoutUrl: session.url,
-      updatedAt: timestamp
-    } satisfies BookingDeposit;
-
-    if (!depositDetails.createdAt) {
-      depositDetails.createdAt = now;
-    }
+      createdAt: previousDeposit?.createdAt ?? now,
+      updatedAt: timestamp,
+      paidAt: previousDeposit?.paidAt
+    };
 
     metadata.deposit = depositDetails;
 

@@ -21,12 +21,12 @@ type AuditLogRow = {
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
   created_at: string;
-  user?: {
+  user?: Array<{
     id: string;
     email: string | null;
     first_name: string | null;
     last_name: string | null;
-  } | null;
+  }> | null;
 };
 
 function getClient(env: Env): SupabaseClient {
@@ -87,19 +87,27 @@ export async function fetchRecentAuditLogs(env: Env, tenantId: string, limit = 5
     throw new Error(`Failed to fetch audit logs: ${error.message}`);
   }
 
-  return (data as AuditLogRow[] | null)?.map((row) => ({
-    id: row.id,
-    tenantId: row.tenant_id,
-    userId: row.user_id,
-    action: row.action,
-    resource: row.resource,
-    resourceId: row.resource_id,
-    before: row.before,
-    after: row.after,
-    createdAt: row.created_at,
-    userEmail: row.user?.email ?? null,
-    userName: row.user ? [row.user.first_name, row.user.last_name].filter(Boolean).join(' ').trim() || null : null
-  })) ?? [];
+  return (data as AuditLogRow[] | null)?.map((row) => {
+    const userRecord = Array.isArray(row.user) ? row.user[0] ?? null : row.user ?? null;
+    const fullName =
+      userRecord && (userRecord.first_name || userRecord.last_name)
+        ? [userRecord.first_name, userRecord.last_name].filter(Boolean).join(' ').trim() || null
+        : null;
+
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      userId: row.user_id,
+      action: row.action,
+      resource: row.resource,
+      resourceId: row.resource_id,
+      before: row.before,
+      after: row.after,
+      createdAt: row.created_at,
+      userEmail: userRecord?.email ?? null,
+      userName: fullName
+    } satisfies AuditLog;
+  }) ?? [];
 }
 
 export async function listAuditLogsSince(env: Env, sinceIso: string) {

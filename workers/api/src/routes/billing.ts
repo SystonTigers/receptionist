@@ -22,8 +22,12 @@ router.get('/invoices', async (request: TenantScopedRequest, env: Env) => {
 });
 
 router.post('/portal', async (request: TenantScopedRequest, env: Env) => {
-  const payload = await request.json().catch(() => ({}));
-  const returnUrl = typeof payload?.returnUrl === 'string' ? payload.returnUrl : undefined;
+  const payload = await request.json().catch(() => null);
+  const body = (payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}) as Record<
+    string,
+    unknown
+  >;
+  const returnUrl = typeof body.returnUrl === 'string' ? body.returnUrl : undefined;
   const session = await createCustomerPortalSession(env, request.tenantId!, returnUrl);
   return JsonResponse.ok({ url: session.url });
 });
