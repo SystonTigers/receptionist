@@ -1,5 +1,6 @@
 
 import type { RequestLogger } from '@ai-hairdresser/shared';
+import type { KVNamespace } from '@cloudflare/workers-types';
 
 
 type Role = import('@ai-hairdresser/shared').Role;
@@ -12,6 +13,7 @@ interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;
   JWT_SECRET: string;
   MULTITENANT_SIGNING_KEY: string;
+  IDEMP_KV: KVNamespace;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_DEFAULT_PRICE_ID: string;
